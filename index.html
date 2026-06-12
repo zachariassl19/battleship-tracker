@@ -476,8 +476,7 @@
     const clientId = localStorage.getItem("battleshipClientId") || crypto.randomUUID();
     localStorage.setItem("battleshipClientId", clientId);
 
-    const sb = window.sb.createClient(SUPABASE_URL, SUPABASE_KEY);
-    let shots = [];
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    let shots = [];
     let highlightedCoordinate = "";
 
     const elements = {
