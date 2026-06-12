@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Battleship Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151922;
+      --panel-2: #1d2430;
+      --text: #eef4ff;
+      --muted: #98a8c5;
+      --line: #303845;
+      --blue: #4f9cff;
+      --blue-soft: rgba(79, 156, 255, .17);
+      --red: #ff5b6e;
+      --red-soft: rgba(255, 91, 110, .17);
+      --hit: #ffd166;
+      --miss: #6bd4ff;
+      --ok: #7cf6b3;
+      --warn: #ffcf7a;
+      --bad: #ff7f8d;
+      --shadow: 0 18px 55px rgba(0, 0, 0, .35);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #111720, #0d1117 58%, #14110f);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1500px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.55rem, 2.2vw, 2.45rem);
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      background: rgba(18, 26, 45, .78);
+      border-radius: var(--radius);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 14px currentColor;
+    }
+
+    .status.online .dot { background: var(--ok); }
+    .status.error .dot { background: var(--bad); }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 1.15fr) minmax(290px, .85fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: rgba(18, 26, 45, .86);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+
+    .command-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 650;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #10151d;
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(79, 156, 255, .15);
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 750;
+      min-height: 42px;
+    }
+
+    button:hover { border-color: #45618d; background: #1a2947; }
+    button.primary { background: #1b63b7; border-color: #2d82e3; }
+    button.danger { background: #772432; border-color: #9b3545; }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(4, auto) minmax(180px, 1fr);
+      gap: 10px;
+      align-items: end;
+      margin-top: 12px;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--line);
+      background: #10151d;
+      border-radius: var(--radius);
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .stat-title {
+      color: var(--muted);
+      font-weight: 750;
+      margin-bottom: 10px;
+    }
+
+    .stat-main {
+      font-size: 1.45rem;
+      font-weight: 850;
+      margin-bottom: 6px;
+    }
+
+    .stat-line {
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+
+    .boards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+
+    .board-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .board-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 64px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-weight: 850;
+      border: 1px solid var(--line);
+    }
+
+    .badge.blue { color: #bcdcff; background: var(--blue-soft); border-color: rgba(79, 156, 255, .4); }
+    .badge.red { color: #ffd0d6; background: var(--red-soft); border-color: rgba(255, 91, 110, .4); }
+
+    .board-wrap {
+      overflow: auto;
+      padding-bottom: 2px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 34px repeat(15, minmax(30px, 1fr));
+      grid-auto-rows: minmax(30px, 1fr);
+      min-width: 530px;
+      aspect-ratio: 16 / 16;
+      border: 1px solid var(--line);
+      background: #0f141b;
+    }
+
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-right: 1px solid rgba(40, 54, 83, .9);
+      border-bottom: 1px solid rgba(40, 54, 83, .9);
+      min-width: 0;
+      min-height: 0;
+      font-weight: 850;
+      user-select: none;
+    }
+
+    .cell.header {
+      color: var(--muted);
+      background: #171d27;
+      font-size: .78rem;
+    }
+
+    .cell.shot {
+      position: relative;
+      font-size: 1.05rem;
+    }
+
+    .cell.hit {
+      color: #17110a;
+      background: linear-gradient(135deg, #ffe6a6, var(--hit));
+    }
+
+    .cell.miss {
+      color: #061827;
+      background: linear-gradient(135deg, #b9ecff, var(--miss));
+    }
+
+    .cell.highlight {
+      outline: 3px solid #ffffff;
+      outline-offset: -4px;
+      box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .32);
+    }
+
+    .cell.sunk {
+      color: #fff4f6;
+      background: linear-gradient(135deg, #a82f42, var(--red));
+      outline: 3px solid var(--red);
+      outline-offset: -5px;
+      box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .28), 0 0 18px rgba(255, 91, 110, .28);
+    }
+
+    .sunk-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .sunk-item {
+      color: var(--text);
+      font-size: .88rem;
+      line-height: 1.35;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(300px, .78fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .log-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .log-list {
+      display: grid;
+      gap: 8px;
+      max-height: 440px;
+      overflow: auto;
+      padding-right: 3px;
+    }
+
+    .log-item {
+      display: grid;
+      grid-template-columns: 76px 72px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: #10151d;
+      border-radius: var(--radius);
+      padding: 9px 10px;
+    }
+
+    .result-hit { color: var(--hit); font-weight: 850; }
+    .result-miss { color: var(--miss); font-weight: 850; }
+    .result-sunk { color: var(--red); font-weight: 850; }
+    .time { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+
+    textarea {
+      min-height: 210px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: .86rem;
+    }
+
+    .import-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .message {
+      min-height: 22px;
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .message.good { color: var(--ok); }
+    .message.bad { color: var(--bad); }
+
+    @media (max-width: 1050px) {
+      .top-grid,
+      .boards,
+      .bottom-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app { padding: 12px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .status { width: 100%; justify-content: center; }
+      .command-row { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar .search-box { grid-column: 1 / -1; }
+      .stats { grid-template-columns: 1fr; }
+      .log-head { align-items: stretch; flex-direction: column; }
+      .log-item { grid-template-columns: 64px 60px 1fr; }
+      .log-item .time { grid-column: 1 / -1; }
+      .board { min-width: 500px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>Battleship Tracker</h1>
+        <p class="subtitle">15x15 brett med sanntid, automatisk lagring, skuddlogg og statistikk.</p>
+      </div>
+      <div id="connectionStatus" class="status">
+        <span class="dot"></span>
+        <span>Kobler til Supabase</span>
+      </div>
+    </header>
+
+    <section class="top-grid">
+      <div class="panel">
+        <label for="commandInput">Kommando</label>
+        <div class="command-row">
+          <input id="commandInput" autocomplete="off" placeholder="BT A1, BB A1, RT A1, RB A1 eller RS A1-A6">
+          <button id="saveCommand" class="primary" type="button">Registrer</button>
+          <button id="undoButton" type="button">Undo</button>
+        </div>
+        <div class="toolbar">
+          <button id="exportButton" type="button">Eksporter JSON</button>
+          <button id="copyButton" type="button">Kopier JSON</button>
+          <button id="resetButton" class="danger" type="button">Nullstill</button>
+          <button id="refreshButton" type="button">Oppdater</button>
+          <div class="search-box">
+            <label for="searchInput">Søk etter rute</label>
+            <input id="searchInput" autocomplete="off" placeholder="F.eks. M7">
+          </div>
+        </div>
+        <p class="hint">Kommandoene tolkes slik: BT = Blå treff, BB = Blå bom, RT = Rød treff, RB = Rød bom, BS = Blå sunket, RS = Rød sunket.</p>
+        <div id="message" class="message"></div>
+      </div>
+
+      <div class="panel">
+        <div class="stats" id="stats"></div>
+      </div>
+    </section>
+
+    <section class="boards">
+      <div class="panel">
+        <div class="board-head">
+          <h2 class="board-title"><span class="badge blue">Blå</span> Blått lag</h2>
+          <span id="blueBoardCount" class="time"></span>
+        </div>
+        <div class="board-wrap">
+          <div id="blueBoard" class="board" aria-label="Blått lag sitt brett"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="board-head">
+          <h2 class="board-title"><span class="badge red">Rød</span> Rødt lag</h2>
+          <span id="redBoardCount" class="time"></span>
+        </div>
+        <div class="board-wrap">
+          <div id="redBoard" class="board" aria-label="Rødt lag sitt brett"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-grid">
+      <div class="panel">
+        <div class="log-head">
+          <h2 class="board-title">Siste 50 skudd</h2>
+          <select id="logFilter" aria-label="Filtrer logg">
+            <option value="all">Alle lag</option>
+            <option value="blue">Blått lag</option>
+            <option value="red">Rødt lag</option>
+          </select>
+        </div>
+        <div id="logList" class="log-list"></div>
+      </div>
+
+      <div class="panel">
+        <label for="jsonBox">Import / eksport JSON</label>
+        <textarea id="jsonBox" spellcheck="false" placeholder="Eksport vises her. Lim inn JSON for import."></textarea>
+        <div class="import-actions">
+          <button id="importButton" class="primary" type="button">Importer JSON</button>
+          <button id="clearJsonButton" type="button">Tøm felt</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (() => {
+    const SUPABASE_URL = "https://lrjacitfxbntrwmwytpc.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_5xOMVJlZnqF5IfAUxKUQEQ_dYccpJNv";
+    const TABLE = "battleship_shots";
+    const ROWS = "ABCDEFGHIJKLMNO".split("");
+    const COLS = Array.from({ length: 15 }, (_, index) => index + 1);
+    const COMMANDS = {
+      BT: { team: "blue", result: "hit" },
+      BB: { team: "blue", result: "miss" },
+      RT: { team: "red", result: "hit" },
+      RB: { team: "red", result: "miss" },
+      BS: { team: "blue", result: "sunk" },
+      RS: { team: "red", result: "sunk" }
+    };
+    const TEAM_LABEL = { blue: "Blå", red: "Rød" };
+    const RESULT_LABEL = { hit: "Treff", miss: "Bom", sunk: "Sunket" };
+    const SUNK_MARKER = ":sunk:";
+    const clientId = localStorage.getItem("battleshipClientId") || crypto.randomUUID();
+    localStorage.setItem("battleshipClientId", clientId);
+
+    const supabaseFactory = window.supabase;
+    const supabaseClient = supabaseFactory && typeof supabaseFactory.createClient === "function"
+      ? supabaseFactory.createClient(SUPABASE_URL, SUPABASE_KEY)
+      : null;
+    let shots = [];
+    let highlightedCoordinate = "";
+
+    const elements = {
+      status: document.getElementById("connectionStatus"),
+      commandInput: document.getElementById("commandInput"),
+      saveCommand: document.getElementById("saveCommand"),
+      undoButton: document.getElementById("undoButton"),
+      exportButton: document.getElementById("exportButton"),
+      copyButton: document.getElementById("copyButton"),
+      resetButton: document.getElementById("resetButton"),
+      refreshButton: document.getElementById("refreshButton"),
+      searchInput: document.getElementById("searchInput"),
+      message: document.getElementById("message"),
+      stats: document.getElementById("stats"),
+      blueBoard: document.getElementById("blueBoard"),
+      redBoard: document.getElementById("redBoard"),
+      blueBoardCount: document.getElementById("blueBoardCount"),
+      redBoardCount: document.getElementById("redBoardCount"),
+      logFilter: document.getElementById("logFilter"),
+      logList: document.getElementById("logList"),
+      jsonBox: document.getElementById("jsonBox"),
+      importButton: document.getElementById("importButton"),
+      clearJsonButton: document.getElementById("clearJsonButton")
+    };
+
+    function hasSupabaseClient() {
+      if (supabaseClient) return true;
+      setStatus("Supabase JS v2 ble ikke lastet", "error");
+      showMessage("Supabase-klienten er ikke tilgjengelig. Sjekk at @supabase/supabase-js@2 lastes fra CDN.", "bad");
+      return false;
+    }
+
+    function normalizeCoordinate(value) {
+      const match = String(value || "").trim().toUpperCase().match(/^([A-O])\s*(1[0-5]|[1-9])$/);
+      if (!match) return null;
+      return {
+        coordinate: `${match[1]}${Number(match[2])}`,
+        row_label: match[1],
+        col_number: Number(match[2])
+      };
+    }
+
+    function normalizeCoordinateRange(value) {
+      const parts = String(value || "").trim().toUpperCase().split("-");
+      if (parts.length > 2) return null;
+
+      const start = normalizeCoordinate(parts[0]);
+      const end = normalizeCoordinate(parts[1] || parts[0]);
+      if (!start || !end) return null;
+
+      const sameRow = start.row_label === end.row_label;
+      const sameCol = start.col_number === end.col_number;
+      if (!sameRow && !sameCol) return null;
+
+      const coordinates = [];
+      if (sameRow) {
+        const from = Math.min(start.col_number, end.col_number);
+        const to = Math.max(start.col_number, end.col_number);
+        for (let col = from; col <= to; col += 1) {
+          coordinates.push(normalizeCoordinate(`${start.row_label}${col}`));
+        }
+      } else {
+        const from = Math.min(ROWS.indexOf(start.row_label), ROWS.indexOf(end.row_label));
+        const to = Math.max(ROWS.indexOf(start.row_label), ROWS.indexOf(end.row_label));
+        for (let index = from; index <= to; index += 1) {
+          coordinates.push(normalizeCoordinate(`${ROWS[index]}${start.col_number}`));
+        }
+      }
+
+      return coordinates.length >= 1 && coordinates.length <= 6 ? coordinates : null;
+    }
+
+    function parseCommand(value) {
+      const parts = String(value || "").trim().toUpperCase().split(/\s+/);
+      if (parts.length !== 2 || !COMMANDS[parts[0]]) return null;
+      const command = COMMANDS[parts[0]];
+      const coordinates = command.result === "sunk"
+        ? normalizeCoordinateRange(parts[1])
+        : [normalizeCoordinate(parts[1])].filter(Boolean);
+      if (!coordinates || !coordinates.length) return null;
+      if (command.result === "sunk") {
+        const rangeKey = coordinates.map((coordinate) => coordinate.coordinate).join("-");
+        return coordinates.map((coordinate) => ({
+          team: command.team,
+          result: "hit",
+          ...coordinate,
+          client_id: `${clientId}${SUNK_MARKER}${rangeKey}`
+        }));
+      }
+      return coordinates.map((coordinate) => ({ ...command, ...coordinate, client_id: clientId }));
+    }
+
+    function setStatus(text, mode = "") {
+      elements.status.className = `status ${mode}`.trim();
+      elements.status.querySelector("span:last-child").textContent = text;
+    }
+
+    function showMessage(text, type = "") {
+      elements.message.textContent = text;
+      elements.message.className = `message ${type}`.trim();
+    }
+
+    function formatTime(value) {
+      return new Intl.DateTimeFormat("no-NO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        day: "2-digit",
+        month: "2-digit"
+      }).format(new Date(value));
+    }
+
+    function getShotMap(team) {
+      return new Map(shots.filter((shot) => shot.team === team).map((shot) => [shot.coordinate, shot]));
+    }
+
+    function isSunkShot(shot) {
+      return shot && (shot.result === "sunk" || String(shot.client_id || "").includes(SUNK_MARKER));
+    }
+
+    function calculateSunkShips(team) {
+      const groups = new Map();
+      shots
+        .filter((shot) => shot.team === team && isSunkShot(shot))
+        .forEach((shot) => {
+          const marker = String(shot.client_id || "").split(SUNK_MARKER)[1];
+          const key = marker || shot.coordinate;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(shot);
+        });
+
+      const sunkShips = [];
+      groups.forEach((group) => {
+        const rows = new Set(group.map((item) => item.row_label));
+        const cols = new Set(group.map((item) => item.col_number));
+        const isStraight = rows.size === 1 || cols.size === 1;
+        if (!isStraight || group.length < 1 || group.length > 6) return;
+
+        const sorted = group.slice().sort((a, b) => {
+          if (a.row_label === b.row_label) return a.col_number - b.col_number;
+          return ROWS.indexOf(a.row_label) - ROWS.indexOf(b.row_label);
+        });
+        sunkShips.push({
+          size: sorted.length,
+          coordinates: sorted.map((item) => item.coordinate)
+        });
+      });
+
+      return sunkShips.sort((a, b) => b.size - a.size || a.coordinates[0].localeCompare(b.coordinates[0]));
+    }
+
+    function getSunkCoordinateSet(team) {
+      return new Set(calculateSunkShips(team).flatMap((ship) => ship.coordinates));
+    }
+
+    function shotSymbol(shot) {
+      if (!shot) return "";
+      if (isSunkShot(shot)) return "S";
+      if (shot.result === "miss") return "•";
+      return "X";
+    }
+
+    function resultLabel(shot) {
+      return isSunkShot(shot) ? RESULT_LABEL.sunk : RESULT_LABEL[shot.result];
+    }
+
+    function resultClass(shot) {
+      return isSunkShot(shot) ? "result-sunk" : `result-${shot.result}`;
+    }
+
+    function renderBoard(team, target) {
+      const map = getShotMap(team);
+      const sunkCoordinates = getSunkCoordinateSet(team);
+      target.innerHTML = "";
+      target.appendChild(cell("", "header"));
+      COLS.forEach((col) => target.appendChild(cell(col, "header")));
+      ROWS.forEach((row) => {
+        target.appendChild(cell(row, "header"));
+        COLS.forEach((col) => {
+          const coord = `${row}${col}`;
+          const shot = map.get(coord);
+          const classes = ["cell"];
+          if (shot) classes.push("shot", shot.result);
+          if (sunkCoordinates.has(coord)) classes.push("sunk");
+          if (highlightedCoordinate === coord) classes.push("highlight");
+          target.appendChild(cell(shotSymbol(shot), classes.join(" "), coord));
+        });
+      });
+    }
+
+    function cell(text, className, title = "") {
+      const node = document.createElement("div");
+      node.className = className;
+      node.textContent = text;
+      if (title) node.title = title;
+      return node;
+    }
+
+    function calculateStats(team) {
+      const scoped = team === "all" ? shots : shots.filter((shot) => shot.team === team);
+      const hits = scoped.filter((shot) => shot.result === "hit" || shot.result === "sunk").length;
+      const misses = scoped.filter((shot) => shot.result === "miss").length;
+      const total = scoped.length;
+      const percent = total ? Math.round((hits / total) * 1000) / 10 : 0;
+      return { hits, misses, total, percent };
+    }
+
+    function renderStats() {
+      const cards = [
+        ["Blått lag", calculateStats("blue"), calculateSunkShips("blue")],
+        ["Rødt lag", calculateStats("red"), calculateSunkShips("red")],
+        ["Samlet", calculateStats("all"), [...calculateSunkShips("blue"), ...calculateSunkShips("red")]]
+      ];
+      elements.stats.innerHTML = cards.map(([title, stat, sunkShips]) => `
+        <div class="stat-card">
+          <div class="stat-title">${title}</div>
+          <div class="stat-main">${stat.percent}%</div>
+          <div class="stat-line">${stat.hits} treff / ${stat.misses} bom</div>
+          <div class="stat-line">${stat.total} skudd totalt</div>
+          <div class="stat-line">${sunkShips.length} sunket</div>
+          <div class="sunk-list">
+            ${sunkShips.slice(0, 4).map((ship) => `
+              <div class="sunk-item">${ship.size}-ruters båt: ${ship.coordinates.join(", ")}</div>
+            `).join("")}
+          </div>
+        </div>
+      `).join("");
+      elements.blueBoardCount.textContent = `${calculateStats("blue").total} skudd`;
+      elements.redBoardCount.textContent = `${calculateStats("red").total} skudd`;
+    }
+
+    function renderLog() {
+      const filter = elements.logFilter.value;
+      const filtered = shots
+        .filter((shot) => filter === "all" || shot.team === filter)
+        .slice()
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 50);
+
+      if (!filtered.length) {
+        elements.logList.innerHTML = `<div class="stat-line">Ingen skudd å vise.</div>`;
+        return;
+      }
+
+      elements.logList.innerHTML = filtered.map((shot) => `
+        <div class="log-item">
+          <span class="badge ${shot.team}">${TEAM_LABEL[shot.team]}</span>
+          <strong>${shot.coordinate}</strong>
+          <span class="${resultClass(shot)}">${resultLabel(shot)}</span>
+          <span class="time">${formatTime(shot.created_at)}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderAll() {
+      renderBoard("blue", elements.blueBoard);
+      renderBoard("red", elements.redBoard);
+      renderStats();
+      renderLog();
+    }
+
+    async function loadShots() {
+      if (!hasSupabaseClient()) return;
+
+      const { data, error } = await supabaseClient
+        .from(TABLE)
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        setStatus("Feil ved lasting", "error");
+        showMessage(error.message, "bad");
+        return;
+      }
+
+      shots = data || [];
+      renderAll();
+      setStatus("Sanntid aktiv", "online");
+    }
+
+    async function saveCommand() {
+      const parsed = parseCommand(elements.commandInput.value);
+      if (!parsed) {
+        showMessage("Ugyldig kommando. Bruk BT A1, RB O15, BS A1-A6 eller RS C3-C3.", "bad");
+        return;
+      }
+
+      const isSunkCommand = parsed.some(isSunkShot);
+      const duplicate = parsed.find((item) =>
+        shots.some((shot) => shot.team === item.team && shot.coordinate === item.coordinate)
+      );
+      if (duplicate) {
+        if (!isSunkCommand) {
+          showMessage(`${TEAM_LABEL[duplicate.team]} har allerede registrert ${duplicate.coordinate}.`, "bad");
+          return;
+        }
+      }
+
+      if (!hasSupabaseClient()) return;
+
+      const query = isSunkCommand
+        ? supabaseClient.from(TABLE).upsert(parsed, { onConflict: "team,coordinate" })
+        : supabaseClient.from(TABLE).insert(parsed[0]);
+      const { error } = await query;
+      if (error) {
+        showMessage(error.code === "23505" ? "Denne ruten er allerede registrert for laget." : error.message, "bad");
+        await loadShots();
+        return;
+      }
+
+      elements.commandInput.value = "";
+      showMessage(isSunkCommand ? "Båt markert som sunket." : "Skudd registrert og lagret.", "good");
+      await loadShots();
+    }
+
+    async function undoLastShot() {
+      const latest = shots.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      if (!latest) {
+        showMessage("Ingen skudd å angre.", "bad");
+        return;
+      }
+
+      const ok = confirm(`Angre siste skudd: ${TEAM_LABEL[latest.team]} ${latest.coordinate} ${resultLabel(latest).toLowerCase()}?`);
+      if (!ok) return;
+
+      if (!hasSupabaseClient()) return;
+
+      const { error } = await supabaseClient.from(TABLE).delete().eq("id", latest.id);
+      if (error) {
+        showMessage(error.message, "bad");
+        return;
+      }
+
+      showMessage("Siste skudd er fjernet.", "good");
+      await loadShots();
+    }
+
+    async function resetBoard() {
+      const ok = confirm("Er du sikker på at du vil nullstille hele brettet? Dette sletter alle skudd.");
+      if (!ok) return;
+
+      if (!hasSupabaseClient()) return;
+
+      const { error } = await supabaseClient.from(TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) {
+        showMessage(error.message, "bad");
+        return;
+      }
+
+      showMessage("Brettet er nullstilt.", "good");
+      await loadShots();
+    }
+
+    function exportJson() {
+      const payload = {
+        exported_at: new Date().toISOString(),
+        shots: shots.map(({ id, team, result, coordinate, row_label, col_number, client_id, created_at }) => ({
+          id, team, result, coordinate, row_label, col_number, client_id, created_at
+        }))
+      };
+      elements.jsonBox.value = JSON.stringify(payload, null, 2);
+      showMessage("JSON eksportert til tekstfeltet.", "good");
+    }
+
+    async function copyJson() {
+      if (!elements.jsonBox.value.trim()) exportJson();
+      await navigator.clipboard.writeText(elements.jsonBox.value);
+      showMessage("JSON kopiert.", "good");
+    }
+
+    function normalizeImportedShot(raw) {
+      const coord = normalizeCoordinate(raw.coordinate);
+      const team = String(raw.team || "").toLowerCase();
+      const result = String(raw.result || "").toLowerCase();
+      if (!coord || !["blue", "red"].includes(team) || !["hit", "miss", "sunk"].includes(result)) return null;
+      const importedClientId = String(raw.client_id || "");
+      const sunkClientId = importedClientId.includes(SUNK_MARKER)
+        ? importedClientId
+        : `${clientId}${SUNK_MARKER}${coord.coordinate}`;
+      return {
+        team,
+        result: result === "sunk" ? "hit" : result,
+        ...coord,
+        client_id: result === "sunk" ? sunkClientId : (importedClientId || clientId)
+      };
+    }
+
+    async function importJson() {
+      let parsed;
+      try {
+        parsed = JSON.parse(elements.jsonBox.value);
+      } catch {
+        showMessage("JSON kunne ikke leses.", "bad");
+        return;
+      }
+
+      const inputShots = Array.isArray(parsed) ? parsed : parsed.shots;
+      if (!Array.isArray(inputShots)) {
+        showMessage("JSON må være en liste eller ha feltet shots.", "bad");
+        return;
+      }
+
+      const normalized = inputShots.map(normalizeImportedShot).filter(Boolean);
+      if (!normalized.length) {
+        showMessage("Fant ingen gyldige skudd å importere.", "bad");
+        return;
+      }
+
+      const unique = Array.from(new Map(normalized.map((shot) => [`${shot.team}:${shot.coordinate}`, shot])).values());
+      if (!hasSupabaseClient()) return;
+
+      const { error } = await supabaseClient.from(TABLE).upsert(unique, {
+        onConflict: "team,coordinate",
+        ignoreDuplicates: true
+      });
+
+      if (error) {
+        showMessage(error.message, "bad");
+        return;
+      }
+
+      showMessage(`${unique.length} skudd importert. Duplikater ble hoppet over.`, "good");
+      await loadShots();
+    }
+
+    function applySearch() {
+      const coord = normalizeCoordinate(elements.searchInput.value);
+      highlightedCoordinate = coord ? coord.coordinate : "";
+      renderAll();
+      if (elements.searchInput.value.trim() && !coord) {
+        showMessage("Søk må være en rute fra A1 til O15.", "bad");
+      }
+    }
+
+    function setupRealtime() {
+      if (!hasSupabaseClient()) return;
+
+      supabaseClient
+        .channel("battleship-tracker")
+        .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => {
+          loadShots();
+        })
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") setStatus("Sanntid aktiv", "online");
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setStatus("Sanntid frakoblet", "error");
+        });
+    }
+
+    elements.saveCommand.addEventListener("click", saveCommand);
+    elements.commandInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") saveCommand();
+    });
+    elements.undoButton.addEventListener("click", undoLastShot);
+    elements.resetButton.addEventListener("click", resetBoard);
+    elements.refreshButton.addEventListener("click", loadShots);
+    elements.exportButton.addEventListener("click", exportJson);
+    elements.copyButton.addEventListener("click", copyJson);
+    elements.importButton.addEventListener("click", importJson);
+    elements.clearJsonButton.addEventListener("click", () => { elements.jsonBox.value = ""; });
+    elements.searchInput.addEventListener("input", applySearch);
+    elements.logFilter.addEventListener("change", renderLog);
+
+    setupRealtime();
+    loadShots();
+  })();
+  </script>
+</body>
+</html>
