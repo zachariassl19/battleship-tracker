@@ -383,7 +383,7 @@
       </div>
       <div id="connectionStatus" class="status">
         <span class="dot"></span>
-        <span>Kobler til Supabase</span>
+        <span>Kobler til supabase</span>
       </div>
     </header>
 
@@ -460,8 +460,8 @@
   </main>
 
   <script>
-    const SUPABASE_URL = "https://lrjacitfxbntrwmwytpc.sb.co";
-    const SUPABASE_KEY = "sb_publishable_5xOMVJlZnqF5IfAUxKUQEQ_dYccpJNv";
+    const SUPABASE_URL = "https://lrjacitfxbntrwmwytpc.supabase.co";
+    const SUPABASE_KEY = "supabase_publishable_5xOMVJlZnqF5IfAUxKUQEQ_dYccpJNv";
     const TABLE = "battleship_shots";
     const ROWS = "ABCDEFGHIJKLMNO".split("");
     const COLS = Array.from({ length: 15 }, (_, index) => index + 1);
@@ -476,7 +476,7 @@
     const clientId = localStorage.getItem("battleshipClientId") || crypto.randomUUID();
     localStorage.setItem("battleshipClientId", clientId);
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    let shots = [];
+const supabase = window.supabase.createClient(...)   let shots = [];
     let highlightedCoordinate = "";
 
     const elements = {
@@ -657,7 +657,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    le
         return;
       }
 
-      const { error } = await sb.from(TABLE).insert(parsed);
+      const { error } = await supab.from(TABLE).insert(parsed);
       if (error) {
         showMessage(error.code === "23505" ? "Denne ruten er allerede registrert for laget." : error.message, "bad");
         await loadShots();
@@ -679,7 +679,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    le
       const ok = confirm(`Angre siste skudd: ${TEAM_LABEL[latest.team]} ${latest.coordinate} ${RESULT_LABEL[latest.result].toLowerCase()}?`);
       if (!ok) return;
 
-      const { error } = await sb.from(TABLE).delete().eq("id", latest.id);
+      const { error } = await supabase.from(TABLE).delete().eq("id", latest.id);
       if (error) {
         showMessage(error.message, "bad");
         return;
@@ -693,7 +693,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    le
       const ok = confirm("Er du sikker på at du vil nullstille hele brettet? Dette sletter alle skudd.");
       if (!ok) return;
 
-      const { error } = await sb.from(TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      const { error } = await supabase.from(TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000");
       if (error) {
         showMessage(error.message, "bad");
         return;
@@ -750,7 +750,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    le
       }
 
       const unique = Array.from(new Map(normalized.map((shot) => [`${shot.team}:${shot.coordinate}`, shot])).values());
-      const { error } = await sb.from(TABLE).upsert(unique, {
+      const { error } = await supabase.from(TABLE).upsert(unique, {
         onConflict: "team,coordinate",
         ignoreDuplicates: true
       });
@@ -774,7 +774,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);    le
     }
 
     function setupRealtime() {
-sb
+supabase
   .channel("battleship-tracker")        
   .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => {
           loadShots();
