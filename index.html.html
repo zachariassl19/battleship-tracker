@@ -1,0 +1,2283 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+  <title>POWER Battleship Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --power-orange: #ff6a00;
+      --power-orange-2: #ff8a1f;
+      --power-red: #e30613;
+      --ink: #111111;
+      --text: #1f2328;
+      --muted: #68707d;
+      --bg: #f4f5f7;
+      --surface: #ffffff;
+      --surface-2: #f9fafb;
+      --line: #dde1e7;
+      --line-strong: #c9d0da;
+      --hit: #ffbe2e;
+      --miss: #d8dde5;
+      --sunk: #20242b;
+      --blue: #2563eb;
+      --red-team: #e30613;
+      --good: #16803c;
+      --warn: #b65c00;
+      --bad: #c1121f;
+      --shadow: 0 18px 48px rgba(18, 25, 38, .12);
+      --shadow-soft: 0 10px 24px rgba(18, 25, 38, .08);
+      --radius: 8px;
+      --cell-size: 40px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      min-height: 100%;
+      touch-action: manipulation;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(255,106,0,.11), transparent 34%),
+        linear-gradient(180deg, #fff 0, var(--bg) 290px, #eef1f5 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 800;
+      padding: 10px 13px;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+      touch-action: manipulation;
+    }
+
+    button:hover {
+      border-color: var(--power-orange);
+      box-shadow: 0 8px 20px rgba(255, 106, 0, .12);
+      transform: translateY(-1px);
+    }
+
+    button:active { transform: translateY(0); }
+    button:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
+
+    button.primary {
+      border-color: var(--power-orange);
+      background: linear-gradient(135deg, var(--power-orange), var(--power-orange-2));
+      color: #fff;
+      box-shadow: 0 10px 22px rgba(255, 106, 0, .22);
+    }
+
+    button.danger {
+      border-color: rgba(227, 6, 19, .32);
+      background: #fff5f5;
+      color: var(--bad);
+    }
+
+    button.icon-button {
+      width: 44px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.08rem;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      padding: 11px 12px;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--power-orange);
+      box-shadow: 0 0 0 4px rgba(255, 106, 0, .14);
+    }
+
+    textarea {
+      min-height: 190px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: .86rem;
+      line-height: 1.45;
+    }
+
+    label {
+      display: block;
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .app {
+      width: min(1680px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      min-height: 170px;
+      margin-bottom: 16px;
+      padding: 22px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background:
+        linear-gradient(112deg, rgba(17,17,17,.94), rgba(17,17,17,.86) 52%, rgba(255,106,0,.95)),
+        radial-gradient(circle at 78% 26%, rgba(255,255,255,.22), transparent 28%);
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 6px;
+      background: linear-gradient(90deg, var(--power-orange), #fff, var(--power-red));
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      margin-bottom: 13px;
+    }
+
+    .power-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 154px;
+      min-height: 48px;
+      padding: 6px 14px 7px;
+      border-radius: 6px;
+      background: #111;
+      color: #fff;
+      font-size: clamp(1.22rem, 3.8vw, 1.52rem);
+      font-weight: 950;
+      letter-spacing: .03em;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+      box-shadow: inset 0 -5px 0 var(--power-orange), 0 12px 28px rgba(0,0,0,.22);
+    }
+
+    .power-logo span { color: var(--power-orange); }
+
+    .pow {
+      display: inline-grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border: 2px solid rgba(255,255,255,.65);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--power-orange);
+      font-weight: 950;
+      box-shadow: 0 10px 22px rgba(0,0,0,.18);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 3vw, 3.45rem);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      margin: 10px 0 0;
+      color: rgba(255,255,255,.82);
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    .status-stack {
+      display: grid;
+      gap: 10px;
+      justify-items: end;
+      z-index: 1;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.14);
+      color: #fff;
+      backdrop-filter: blur(12px);
+      white-space: nowrap;
+      font-weight: 750;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ffd24d;
+      box-shadow: 0 0 0 6px rgba(255,210,77,.18), 0 0 18px currentColor;
+    }
+
+    .status.online .dot { background: #52d273; box-shadow: 0 0 0 6px rgba(82,210,115,.18), 0 0 18px currentColor; }
+    .status.error .dot { background: #ff5361; box-shadow: 0 0 0 6px rgba(255,83,97,.18), 0 0 18px currentColor; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(680px, 1fr) minmax(340px, 430px);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.92);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(10px);
+    }
+
+    .panel-pad { padding: 14px; }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: auto auto auto minmax(170px, 1fr) auto auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      padding: 9px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #fff;
+      font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--power-orange);
+    }
+
+    .board-shell {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .board-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, #fafbfc);
+    }
+
+    .board-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 1.03rem;
+      letter-spacing: 0;
+    }
+
+    .team-switch {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 4px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #f2f4f7;
+    }
+
+    .team-switch button {
+      min-height: 36px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      padding: 7px 12px;
+      transform: none;
+    }
+
+    .team-switch button.active {
+      background: #111;
+      color: #fff;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 62px;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 950;
+      color: #fff;
+    }
+
+    .badge.blue { background: var(--blue); }
+    .badge.red { background: var(--red-team); }
+    .badge.black { background: #111; }
+    .badge.orange { background: var(--power-orange); }
+
+    .board-viewport {
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding: 14px;
+      background:
+        linear-gradient(#fff, #fff) padding-box,
+        repeating-linear-gradient(45deg, rgba(255,106,0,.05) 0 12px, rgba(17,17,17,.03) 12px 24px);
+      touch-action: pan-x pan-y pinch-zoom;
+      scroll-behavior: smooth;
+    }
+
+    .board-scale {
+      width: max-content;
+      transform-origin: top left;
+      transition: transform .18s ease;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 40px repeat(15, var(--cell-size));
+      grid-template-rows: 40px repeat(15, var(--cell-size));
+      border: 1px solid var(--line-strong);
+      background: var(--line-strong);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 14px 28px rgba(17,17,17,.08);
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      min-height: 0;
+      border: 0;
+      border-radius: 0;
+      background: #fff;
+      color: var(--text);
+      font-weight: 900;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cell.header {
+      background: #111;
+      color: #fff;
+      font-size: .8rem;
+      box-shadow: inset -1px -1px 0 rgba(255,255,255,.12);
+    }
+
+    .cell.playable {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      box-shadow: inset -1px -1px 0 var(--line);
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      isolation: isolate;
+    }
+
+    .cell.playable:hover {
+      z-index: 2;
+      box-shadow: inset 0 0 0 2px var(--power-orange), 0 8px 18px rgba(255,106,0,.18);
+    }
+
+    .cell.hit {
+      background: linear-gradient(135deg, #ffe08a, var(--hit));
+      color: #171717;
+    }
+
+    .cell.miss {
+      background: linear-gradient(135deg, #f4f6f9, var(--miss));
+      color: #505966;
+    }
+
+    .cell.sunk {
+      background:
+        linear-gradient(135deg, #111, #2d3138);
+      color: #fff;
+      box-shadow: inset 0 0 0 2px var(--power-red), inset -1px -1px 0 rgba(255,255,255,.2);
+    }
+
+    .cell.selected {
+      z-index: 4;
+      box-shadow: inset 0 0 0 3px var(--power-orange), 0 0 0 3px rgba(255,106,0,.18);
+    }
+
+    .cell.focused {
+      animation: pulseCell 1.2s ease 2;
+      z-index: 5;
+    }
+
+    .cell.ai-pick::after {
+      content: attr(data-rank);
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      display: grid;
+      place-items: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #111;
+      color: #fff;
+      font-size: .62rem;
+      font-weight: 950;
+      z-index: 3;
+    }
+
+    .cell .mark {
+      position: relative;
+      z-index: 2;
+      line-height: 1;
+      font-size: 1rem;
+    }
+
+    .heat::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--heat-color, transparent);
+      opacity: var(--heat-opacity, 0);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    @keyframes pulseCell {
+      0%, 100% { outline: 0 solid rgba(255,106,0,0); }
+      40% { outline: 5px solid rgba(255,106,0,.45); }
+    }
+
+    .side {
+      display: grid;
+      gap: 16px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 1.02rem;
+      letter-spacing: 0;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #fff, #fafbfc);
+      padding: 12px;
+    }
+
+    .stat-title {
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 7px;
+    }
+
+    .stat-main {
+      color: #111;
+      font-size: clamp(1.3rem, 2vw, 1.8rem);
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .stat-line {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: .88rem;
+      line-height: 1.35;
+    }
+
+    .ai-list, .log-list, .sunk-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .ai-card, .log-item, .sunk-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 10px;
+      transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+    }
+
+    .log-item {
+      display: grid;
+      grid-template-columns: 58px 52px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      text-align: left;
+      min-height: 52px;
+    }
+
+    .log-item:hover, .ai-card:hover {
+      border-color: var(--power-orange);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(18,25,38,.08);
+    }
+
+    .ai-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+      cursor: pointer;
+    }
+
+    .ai-score {
+      display: grid;
+      place-items: center;
+      min-width: 58px;
+      min-height: 44px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #111, #2b2f35);
+      color: #fff;
+      font-weight: 950;
+    }
+
+    .ai-coordinate {
+      font-weight: 950;
+      color: #111;
+      margin-bottom: 3px;
+    }
+
+    .ai-reason {
+      color: var(--muted);
+      line-height: 1.35;
+      font-size: .9rem;
+    }
+
+    .ai-meta {
+      margin-top: 7px;
+      color: #374151;
+      font-size: .84rem;
+      line-height: 1.35;
+      font-weight: 750;
+    }
+
+    .ai-status {
+      display: grid;
+      gap: 8px;
+      color: #374151;
+      font-size: .9rem;
+      line-height: 1.35;
+    }
+
+    .ai-status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 7px;
+    }
+
+    .ai-status-row strong {
+      color: #111;
+      text-align: right;
+    }
+
+    .ai-warning {
+      border: 1px solid rgba(193, 18, 31, .28);
+      border-radius: var(--radius);
+      background: #fff5f5;
+      color: var(--bad);
+      padding: 10px;
+      font-weight: 850;
+    }
+
+    .heat-legend {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 9px;
+      align-items: center;
+      color: #374151;
+      font-size: .9rem;
+      line-height: 1.3;
+    }
+
+    .legend-swatch {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .legend-swatch.low { background: rgba(255, 210, 77, .7); }
+    .legend-swatch.medium { background: rgba(255, 106, 0, .64); }
+    .legend-swatch.high { background: rgba(227, 6, 19, .58); }
+    .legend-swatch.very-high { background: rgba(126, 34, 206, .64); }
+
+    .log-tools {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .result-hit { color: #926100; font-weight: 900; }
+    .result-miss { color: #566170; font-weight: 900; }
+    .result-sunk { color: var(--bad); font-weight: 900; }
+    .time { color: var(--muted); font-size: .82rem; white-space: nowrap; }
+
+    .import-actions, .button-row {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .button-row { margin-top: 10px; }
+
+    .drawer {
+      position: fixed;
+      left: 50%;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      z-index: 40;
+      width: min(560px, calc(100vw - 22px));
+      transform: translate(-50%, 120%);
+      transition: transform .2s ease;
+      border: 1px solid rgba(17,17,17,.12);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.96);
+      box-shadow: 0 24px 58px rgba(17,17,17,.24);
+      backdrop-filter: blur(16px);
+      padding: 12px;
+    }
+
+    .drawer.open { transform: translate(-50%, 0); }
+
+    .drawer-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .selected-coordinate {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      color: #111;
+      font-weight: 950;
+      font-size: 1.5rem;
+    }
+
+    .selected-coordinate small {
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .action-grid button {
+      min-height: 54px;
+      padding: 8px;
+    }
+
+    .toast-stack {
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      z-index: 60;
+      display: grid;
+      gap: 10px;
+      width: min(360px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+
+    .toast {
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--power-orange);
+      border-radius: var(--radius);
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      font-weight: 750;
+      animation: toastIn .24s ease;
+    }
+
+    .toast.good { border-left-color: var(--good); }
+    .toast.bad { border-left-color: var(--bad); }
+    .toast.warn { border-left-color: var(--warn); }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: center;
+      background: rgba(255,255,255,.54);
+      backdrop-filter: blur(6px);
+    }
+
+    .loading.show { display: grid; }
+
+    .spinner {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 5px solid rgba(255,106,0,.18);
+      border-top-color: var(--power-orange);
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty {
+      color: var(--muted);
+      padding: 10px 0;
+      line-height: 1.4;
+    }
+
+    .zoom-controls {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .zoom-value {
+      min-width: 52px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 850;
+    }
+
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+      .side .panel:last-child { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 820px) {
+      .app { padding: 10px; }
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 17px;
+      }
+      .status-stack { justify-items: stretch; }
+      .toolbar {
+        grid-template-columns: 1fr 1fr;
+      }
+      .toolbar .search-box { grid-column: 1 / -1; }
+      .toolbar .wide { grid-column: span 2; }
+      .side { grid-template-columns: 1fr; }
+      .side .panel:last-child { grid-column: auto; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .board-viewport { max-height: 68vh; padding: 10px; }
+      .action-grid { grid-template-columns: 1fr 1fr; }
+      .log-item { grid-template-columns: 56px 48px 1fr; }
+      .log-item .time { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 520px) {
+      :root { --cell-size: 38px; }
+      .brand { gap: 9px; }
+      .power-logo { min-width: 126px; }
+      .pow { width: 42px; height: 42px; }
+      .stats { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr; }
+      .toolbar .wide, .toolbar .search-box { grid-column: auto; }
+      .team-switch { width: 100%; }
+      .board-header { align-items: stretch; flex-direction: column; }
+      .log-tools { grid-template-columns: 1fr; }
+      .toast-stack { top: auto; bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div>
+        <div class="brand">
+          <div class="power-logo" aria-label="POWER">POW<span>ER</span></div>
+          <div class="pow" aria-label="POW maskot">POW</div>
+        </div>
+        <h1>Battleship Tracker</h1>
+        <p class="subtitle">Et raskt internt POWER-verktøy for sanntidsregistrering, sannsynlighetskart, AI-analyse og full kontroll på store brett.</p>
+      </div>
+      <div class="status-stack">
+        <div id="connectionStatus" class="status">
+          <span class="dot"></span>
+          <span>Kobler til Supabase</span>
+        </div>
+        <span id="lastSync" class="status">Venter på data</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div>
+        <div class="panel panel-pad">
+          <div class="toolbar">
+            <div>
+              <label>Lag</label>
+              <div class="team-switch" aria-label="Velg lag">
+                <button id="blueTeam" class="active" type="button">Blå</button>
+                <button id="redTeam" type="button">Rød</button>
+              </div>
+            </div>
+            <button id="aiButton" class="primary wide" type="button">AI-analyse</button>
+            <label class="toggle wide"><input id="heatToggle" type="checkbox"> Heatmap</label>
+            <div class="search-box">
+              <label for="searchInput">Søk</label>
+              <input id="searchInput" autocomplete="off" inputmode="text" placeholder="H7">
+            </div>
+            <div>
+              <label>Zoom</label>
+              <div class="zoom-controls">
+                <button id="zoomOut" class="icon-button" type="button" title="Zoom ut">−</button>
+                <span id="zoomValue" class="zoom-value">100%</span>
+                <button id="zoomIn" class="icon-button" type="button" title="Zoom inn">+</button>
+              </div>
+            </div>
+            <div>
+              <label>Historikk</label>
+              <div class="zoom-controls">
+                <button id="undoButton" class="icon-button" type="button" title="Angre">↩</button>
+                <button id="redoButton" class="icon-button" type="button" title="Gjør om">↪</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="panel board-shell">
+          <div class="board-header">
+            <h2 class="board-title"><span id="activeBadge" class="badge blue">Blå</span><span id="boardTitle">Blått brett</span></h2>
+            <div class="import-actions">
+              <button id="refreshButton" type="button">Oppdater</button>
+              <button id="clearSelectionButton" type="button">Fjern valg</button>
+            </div>
+          </div>
+          <div id="boardViewport" class="board-viewport">
+            <div id="boardScale" class="board-scale">
+              <div id="board" class="board" aria-label="Battleship brett"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="side">
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>Statistikk</h2>
+            <span id="totalBadge" class="badge black">0 skudd</span>
+          </div>
+          <div id="stats" class="stats"></div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>AI-forslag</h2>
+            <span id="aiBest" class="badge orange">Ingen</span>
+          </div>
+          <div id="aiList" class="ai-list"></div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>AI-status</h2>
+            <span id="aiStatusBadge" class="badge black">Klar</span>
+          </div>
+          <div id="aiStatusPanel" class="ai-status"></div>
+        </section>
+
+        <section class="panel panel-pad heat-legend">
+          <div class="section-title">
+            <h2>Heatmap</h2>
+          </div>
+          <div class="legend-row"><span class="legend-swatch very-high"></span><span>86-100 % - Svært høy sannsynlighet</span></div>
+          <div class="legend-row"><span class="legend-swatch high"></span><span>61-85 % - Høy sannsynlighet</span></div>
+          <div class="legend-row"><span class="legend-swatch medium"></span><span>31-60 % - Middels sannsynlighet</span></div>
+          <div class="legend-row"><span class="legend-swatch low"></span><span>11-30 % - Lav sannsynlighet</span></div>
+          <div class="legend-row"><span class="legend-swatch very-low"></span><span>0-10 % - Svært lav sannsynlighet</span></div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>Sunkne båter</h2>
+            <span id="sunkCount" class="badge black">0</span>
+          </div>
+          <div id="sunkList" class="sunk-list"></div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>Skuddlogg</h2>
+          </div>
+          <div class="log-tools">
+            <select id="logFilter" aria-label="Filtrer logg">
+              <option value="all">Alle</option>
+              <option value="blue">Blå</option>
+              <option value="red">Rød</option>
+            </select>
+            <button id="downloadBackupButton" type="button">Last ned backup</button>
+          </div>
+          <div id="logList" class="log-list"></div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="section-title">
+            <h2>Import / eksport</h2>
+          </div>
+          <textarea id="jsonBox" spellcheck="false" placeholder="Eksport vises her. Lim inn JSON for import."></textarea>
+          <div class="button-row">
+            <button id="exportButton" type="button">Eksporter JSON</button>
+            <button id="copyButton" type="button">Kopier</button>
+            <button id="importButton" class="primary" type="button">Importer</button>
+            <button id="clearJsonButton" type="button">Tøm</button>
+            <button id="resetButton" class="danger" type="button">Nullstill</button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <section id="actionDrawer" class="drawer" aria-live="polite">
+    <div class="drawer-top">
+      <div class="selected-coordinate">
+        <span id="selectedCoordinate">H7</span>
+        <small id="selectedMeta">1 rute valgt</small>
+      </div>
+      <button id="closeDrawer" class="icon-button" type="button" title="Lukk">×</button>
+    </div>
+    <div class="action-grid">
+      <button id="hitAction" class="primary" type="button">✅ Treff</button>
+      <button id="missAction" type="button">⭕ Bom</button>
+      <button id="sunkAction" type="button">🚢 Marker sunket</button>
+      <button id="removeAction" class="danger" type="button">🗑 Fjern</button>
+    </div>
+  </section>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+  <div id="loading" class="loading"><div class="spinner" aria-label="Laster"></div></div>
+
+  <script>
+  (() => {
+    const SUPABASE_URL = "https://lrjacitfxbntrwmwytpc.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_5xOMVJlZnqF5IfAUxKUQEQ_dYccpJNv";
+    const TABLE = "battleship_shots";
+    const ROWS = "ABCDEFGHIJKLMNO".split("");
+    const COLS = Array.from({ length: 15 }, (_, index) => index + 1);
+    const SUNK_MARKER = ":sunk:";
+    const TEAM_LABEL = { blue: "Blå", red: "Rød" };
+    const RESULT_LABEL = { hit: "Treff", miss: "Bom", sunk: "Sunket" };
+    const TEAM_BADGE_CLASS = { blue: "blue", red: "red" };
+    const MAX_AI_SUGGESTIONS = 10;
+    const FLEET_DISTRIBUTION = Object.freeze({ 1: 1, 2: 2, 3: 3, 4: 4, 5: 1, 6: 1 });
+    const FLEET_LENGTHS = Object.freeze(Object.entries(FLEET_DISTRIBUTION).flatMap(([length, count]) => Array.from({ length: count }, () => Number(length))));
+    const AI_SIMULATION_LIMIT = 60000;
+    const AI_TIME_LIMIT_MS = 650;
+    const clientId = localStorage.getItem("battleshipClientId") || crypto.randomUUID();
+    localStorage.setItem("battleshipClientId", clientId);
+
+    const supabaseFactory = window.supabase;
+    const supabaseClient = supabaseFactory && typeof supabaseFactory.createClient === "function"
+      ? supabaseFactory.createClient(SUPABASE_URL, SUPABASE_KEY)
+      : null;
+
+    const state = {
+      shots: [],
+      activeTeam: "blue",
+      selected: [],
+      focused: "",
+      aiSuggestions: [],
+      heatmap: new Map(),
+      aiStatus: null,
+      heatmapEnabled: false,
+      zoom: 1,
+      undoStack: [],
+      redoStack: [],
+      loadingCount: 0,
+      realtimeRefreshTimer: 0,
+      lastTapAt: 0,
+      lastTapCoord: ""
+    };
+
+    const elements = {
+      status: document.getElementById("connectionStatus"),
+      lastSync: document.getElementById("lastSync"),
+      blueTeam: document.getElementById("blueTeam"),
+      redTeam: document.getElementById("redTeam"),
+      activeBadge: document.getElementById("activeBadge"),
+      boardTitle: document.getElementById("boardTitle"),
+      boardViewport: document.getElementById("boardViewport"),
+      boardScale: document.getElementById("boardScale"),
+      board: document.getElementById("board"),
+      aiButton: document.getElementById("aiButton"),
+      heatToggle: document.getElementById("heatToggle"),
+      searchInput: document.getElementById("searchInput"),
+      zoomOut: document.getElementById("zoomOut"),
+      zoomIn: document.getElementById("zoomIn"),
+      zoomValue: document.getElementById("zoomValue"),
+      undoButton: document.getElementById("undoButton"),
+      redoButton: document.getElementById("redoButton"),
+      refreshButton: document.getElementById("refreshButton"),
+      clearSelectionButton: document.getElementById("clearSelectionButton"),
+      stats: document.getElementById("stats"),
+      totalBadge: document.getElementById("totalBadge"),
+      aiBest: document.getElementById("aiBest"),
+      aiList: document.getElementById("aiList"),
+      aiStatusBadge: document.getElementById("aiStatusBadge"),
+      aiStatusPanel: document.getElementById("aiStatusPanel"),
+      sunkCount: document.getElementById("sunkCount"),
+      sunkList: document.getElementById("sunkList"),
+      logFilter: document.getElementById("logFilter"),
+      logList: document.getElementById("logList"),
+      jsonBox: document.getElementById("jsonBox"),
+      exportButton: document.getElementById("exportButton"),
+      copyButton: document.getElementById("copyButton"),
+      importButton: document.getElementById("importButton"),
+      clearJsonButton: document.getElementById("clearJsonButton"),
+      downloadBackupButton: document.getElementById("downloadBackupButton"),
+      resetButton: document.getElementById("resetButton"),
+      drawer: document.getElementById("actionDrawer"),
+      selectedCoordinate: document.getElementById("selectedCoordinate"),
+      selectedMeta: document.getElementById("selectedMeta"),
+      closeDrawer: document.getElementById("closeDrawer"),
+      hitAction: document.getElementById("hitAction"),
+      missAction: document.getElementById("missAction"),
+      sunkAction: document.getElementById("sunkAction"),
+      removeAction: document.getElementById("removeAction"),
+      toastStack: document.getElementById("toastStack"),
+      loading: document.getElementById("loading")
+    };
+
+    function hasSupabaseClient() {
+      if (supabaseClient) return true;
+      setStatus("Supabase JS ble ikke lastet", "error");
+      toast("Supabase-klienten er ikke tilgjengelig. Sjekk CDN-lenken.", "bad");
+      return false;
+    }
+
+    function setStatus(text, mode = "") {
+      elements.status.className = `status ${mode}`.trim();
+      elements.status.querySelector("span:last-child").textContent = text;
+    }
+
+    function setLoading(isLoading) {
+      state.loadingCount += isLoading ? 1 : -1;
+      state.loadingCount = Math.max(0, state.loadingCount);
+      elements.loading.classList.toggle("show", state.loadingCount > 0);
+    }
+
+    function toast(text, type = "") {
+      const node = document.createElement("div");
+      node.className = `toast ${type}`.trim();
+      node.textContent = text;
+      elements.toastStack.appendChild(node);
+      window.setTimeout(() => {
+        node.style.opacity = "0";
+        node.style.transform = "translateY(-8px)";
+        node.style.transition = "opacity .2s ease, transform .2s ease";
+        window.setTimeout(() => node.remove(), 220);
+      }, 3400);
+    }
+
+    function friendlyNetworkError(error) {
+      const message = String(error && error.message ? error.message : error || "");
+      if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
+        return "Får ikke kontakt med Supabase. Sjekk nettverk/DNS, VPN/brannmur eller at Supabase-prosjektet fortsatt er aktivt.";
+      }
+      return message || "Ukjent feil ved kontakt med Supabase.";
+    }
+
+    function normalizeCoordinate(value) {
+      const match = String(value || "").trim().toUpperCase().match(/^([A-O])\s*(1[0-5]|[1-9])$/);
+      if (!match) return null;
+      return {
+        coordinate: `${match[1]}${Number(match[2])}`,
+        row_label: match[1],
+        col_number: Number(match[2])
+      };
+    }
+
+    function coordinateToPoint(coordinate) {
+      const coord = normalizeCoordinate(coordinate);
+      if (!coord) return null;
+      return { row: ROWS.indexOf(coord.row_label), col: coord.col_number - 1 };
+    }
+
+    function pointToCoordinate(row, col) {
+      if (row < 0 || row >= ROWS.length || col < 0 || col >= COLS.length) return "";
+      return `${ROWS[row]}${col + 1}`;
+    }
+
+    function sortCoordinates(coordinates) {
+      return coordinates
+        .map(normalizeCoordinate)
+        .filter(Boolean)
+        .sort((a, b) => ROWS.indexOf(a.row_label) - ROWS.indexOf(b.row_label) || a.col_number - b.col_number)
+        .map((item) => item.coordinate);
+    }
+
+    function areContiguous(coordinates) {
+      const sorted = sortCoordinates(coordinates);
+      if (!sorted.length) return false;
+      if (sorted.length === 1) return true;
+      const points = sorted.map(coordinateToPoint);
+      const sameRow = points.every((point) => point.row === points[0].row);
+      const sameCol = points.every((point) => point.col === points[0].col);
+      if (!sameRow && !sameCol) return false;
+      const values = points.map((point) => sameRow ? point.col : point.row).sort((a, b) => a - b);
+      return values.every((value, index) => index === 0 || value === values[index - 1] + 1);
+    }
+
+    function getRangeKey(coordinates) {
+      return sortCoordinates(coordinates).join("-");
+    }
+
+    function createSunkClientId(coordinates) {
+      return `${clientId}${SUNK_MARKER}${getRangeKey(coordinates)}`;
+    }
+
+    function isSunkShot(shot) {
+      return Boolean(shot && (shot.result === "sunk" || String(shot.client_id || "").includes(SUNK_MARKER)));
+    }
+
+    function getSunkKey(shot) {
+      if (!isSunkShot(shot)) return "";
+      return String(shot.client_id || "").split(SUNK_MARKER)[1] || shot.coordinate;
+    }
+
+    function getShotMap(team = state.activeTeam) {
+      return new Map(state.shots.filter((shot) => shot.team === team).map((shot) => [shot.coordinate, shot]));
+    }
+
+    function getAllCoordinates() {
+      return ROWS.flatMap((row) => COLS.map((col) => `${row}${col}`));
+    }
+
+    function formatTime(value) {
+      return new Intl.DateTimeFormat("no-NO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        day: "2-digit",
+        month: "2-digit"
+      }).format(new Date(value));
+    }
+
+    function nowLabel() {
+      return new Intl.DateTimeFormat("no-NO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(new Date());
+    }
+
+    function resultForDisplay(shot) {
+      if (!shot) return "";
+      return isSunkShot(shot) ? "sunk" : shot.result;
+    }
+
+    function resultLabel(shot) {
+      return RESULT_LABEL[resultForDisplay(shot)] || "";
+    }
+
+    function resultClass(shot) {
+      return `result-${resultForDisplay(shot)}`;
+    }
+
+    function shotSymbol(shot) {
+      const result = resultForDisplay(shot);
+      if (result === "sunk") return "■";
+      if (result === "hit") return "✕";
+      if (result === "miss") return "○";
+      return "";
+    }
+
+    function calculateSunkShips(team = state.activeTeam) {
+      const sunkShots = state.shots.filter((shot) => shot.team === team && isSunkShot(shot));
+      const byCoordinate = new Map(sunkShots.map((shot) => [shot.coordinate, shot]));
+      const visited = new Set();
+      const sunkShips = [];
+
+      sunkShots.forEach((shot) => {
+        if (visited.has(shot.coordinate)) return;
+        const stack = [shot.coordinate];
+        const group = [];
+        visited.add(shot.coordinate);
+
+        while (stack.length) {
+          const coordinate = stack.pop();
+          group.push(coordinate);
+          const point = coordinateToPoint(coordinate);
+          [
+            pointToCoordinate(point.row - 1, point.col),
+            pointToCoordinate(point.row + 1, point.col),
+            pointToCoordinate(point.row, point.col - 1),
+            pointToCoordinate(point.row, point.col + 1)
+          ].filter(Boolean).forEach((neighbor) => {
+            if (!byCoordinate.has(neighbor) || visited.has(neighbor)) return;
+            visited.add(neighbor);
+            stack.push(neighbor);
+          });
+        }
+
+        const coordinates = sortCoordinates(group);
+        if (!areContiguous(coordinates)) {
+          coordinates.forEach((coordinate) => {
+            sunkShips.push({
+              team,
+              key: coordinate,
+              size: 1,
+              from: coordinate,
+              to: coordinate,
+              coordinates: [coordinate]
+            });
+          });
+          return;
+        }
+
+        sunkShips.push({
+          team,
+          key: coordinates.join("-"),
+          size: coordinates.length,
+          from: coordinates[0],
+          to: coordinates[coordinates.length - 1],
+          coordinates
+        });
+      });
+
+      return sunkShips.sort((a, b) => b.size - a.size || a.from.localeCompare(b.from));
+    }
+
+    function getSunkCoordinateSet(team = state.activeTeam) {
+      return new Set(calculateSunkShips(team).flatMap((ship) => ship.coordinates));
+    }
+
+    function calculateStats(team = state.activeTeam) {
+      const scoped = state.shots.filter((shot) => shot.team === team);
+      const hits = scoped.filter((shot) => shot.result === "hit").length;
+      const misses = scoped.filter((shot) => shot.result === "miss").length;
+      const total = scoped.length;
+      const hitPercent = total ? Math.round((hits / total) * 1000) / 10 : 0;
+      const missPercent = total ? Math.round((misses / total) * 1000) / 10 : 0;
+      const last = scoped.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      return { hits, misses, total, hitPercent, missPercent, last };
+    }
+
+    function renderStats() {
+      const stat = calculateStats();
+      const best = state.aiSuggestions[0];
+      const cards = [
+        ["Totalt", stat.total, "registrerte skudd"],
+        ["Treff", stat.hits, `${stat.hitPercent}% treffprosent`],
+        ["Bom", stat.misses, `${stat.missPercent}% bomprosent`],
+        ["Siste", stat.last ? stat.last.coordinate : "–", stat.last ? resultLabel(stat.last) : "ingen skudd"],
+        ["AI best", best ? best.coordinate : "–", best ? `${best.percent}% sannsynlighet` : "kjør analyse"],
+        ["Sunket", calculateSunkShips().length, "markerte båter"]
+      ];
+
+      elements.stats.innerHTML = cards.map(([title, main, line]) => `
+        <div class="stat-card">
+          <div class="stat-title">${title}</div>
+          <div class="stat-main">${main}</div>
+          <div class="stat-line">${line}</div>
+        </div>
+      `).join("");
+      elements.totalBadge.textContent = `${stat.total} skudd`;
+      elements.aiBest.textContent = best ? `${best.coordinate} ${best.percent}%` : "Ingen";
+    }
+
+    function renderSunkList() {
+      const sunkShips = calculateSunkShips();
+      elements.sunkCount.textContent = String(sunkShips.length);
+      if (!sunkShips.length) {
+        elements.sunkList.innerHTML = `<div class="empty">Ingen sunkne båter er markert for ${TEAM_LABEL[state.activeTeam].toLowerCase()} ennå.</div>`;
+        return;
+      }
+
+      elements.sunkList.innerHTML = sunkShips.map((ship) => `
+        <button class="sunk-item" type="button" data-coordinate="${ship.coordinates[0]}">
+          <strong>${ship.from}${ship.from === ship.to ? "" : `–${ship.to}`}</strong>
+          <div class="stat-line">${ship.size} sammenhengende rute${ship.size === 1 ? "" : "r"} ignorert av AI som aktiv båt.</div>
+        </button>
+      `).join("");
+    }
+
+    function heatStyle(coordinate) {
+      if (!state.heatmapEnabled) return "";
+      const item = state.heatmap.get(coordinate);
+      if (!item || item.percent <= 0) return "";
+      let color = "rgba(255, 255, 255, .82)";
+      if (item.percent >= 86) color = "rgba(126, 34, 206, .64)";
+      else if (item.percent >= 61) color = "rgba(227, 6, 19, .58)";
+      else if (item.percent >= 31) color = "rgba(255, 106, 0, .64)";
+      else if (item.percent >= 11) color = "rgba(255, 210, 77, .7)";
+      return `--heat-color:${color};--heat-opacity:1;`;
+    }
+
+    function renderBoard() {
+      const map = getShotMap();
+      const selectedSet = new Set(state.selected);
+      const aiRanks = new Map(state.aiSuggestions.map((item, index) => [item.coordinate, index + 1]));
+      const fragments = [];
+
+      fragments.push(`<div class="cell header"></div>`);
+      COLS.forEach((col) => fragments.push(`<div class="cell header">${col}</div>`));
+
+      ROWS.forEach((row) => {
+        fragments.push(`<div class="cell header">${row}</div>`);
+        COLS.forEach((col) => {
+          const coordinate = `${row}${col}`;
+          const shot = map.get(coordinate);
+          const display = resultForDisplay(shot);
+          const classes = ["cell", "playable"];
+          if (display) classes.push(display);
+          if (selectedSet.has(coordinate)) classes.push("selected");
+          if (state.focused === coordinate) classes.push("focused");
+          if (state.heatmapEnabled) classes.push("heat");
+          if (aiRanks.has(coordinate)) classes.push("ai-pick");
+          fragments.push(`
+            <button class="${classes.join(" ")}" type="button" data-coordinate="${coordinate}" data-rank="${aiRanks.get(coordinate) || ""}" style="${heatStyle(coordinate)}" title="${coordinate}">
+              <span class="mark">${shotSymbol(shot)}</span>
+            </button>
+          `);
+        });
+      });
+
+      elements.board.innerHTML = fragments.join("");
+      elements.activeBadge.className = `badge ${TEAM_BADGE_CLASS[state.activeTeam]}`;
+      elements.activeBadge.textContent = TEAM_LABEL[state.activeTeam];
+      elements.boardTitle.textContent = state.activeTeam === "blue" ? "Blått brett" : "Rødt brett";
+      elements.blueTeam.classList.toggle("active", state.activeTeam === "blue");
+      elements.redTeam.classList.toggle("active", state.activeTeam === "red");
+      updateDrawer();
+    }
+
+    function renderLog() {
+      const filter = elements.logFilter.value;
+      const filtered = state.shots
+        .filter((shot) => filter === "all" || shot.team === filter)
+        .slice()
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 80);
+
+      if (!filtered.length) {
+        elements.logList.innerHTML = `<div class="empty">Ingen skudd å vise.</div>`;
+        return;
+      }
+
+      elements.logList.innerHTML = filtered.map((shot) => `
+        <button class="log-item" type="button" data-team="${shot.team}" data-coordinate="${shot.coordinate}">
+          <span class="badge ${TEAM_BADGE_CLASS[shot.team]}">${TEAM_LABEL[shot.team]}</span>
+          <strong>${shot.coordinate}</strong>
+          <span class="${resultClass(shot)}">${resultLabel(shot)}</span>
+          <span class="time">${formatTime(shot.created_at)}</span>
+        </button>
+      `).join("");
+    }
+
+    function renderAiList() {
+      if (!state.aiSuggestions.length) {
+        elements.aiList.innerHTML = `<div class="empty">Trykk AI-analyse for ti anbefalte skudd.</div>`;
+        return;
+      }
+
+      elements.aiList.innerHTML = state.aiSuggestions.map((item) => `
+        <button class="ai-card" type="button" data-coordinate="${item.coordinate}">
+          <div class="ai-score">${item.percent}%</div>
+          <div>
+            <div class="ai-coordinate">${item.coordinate}</div>
+            <div class="ai-reason">${item.reason}</div>
+            <div class="ai-meta">${item.shipText || "Ingen gjenværende båt passer her."}</div>
+          </div>
+        </button>
+      `).join("");
+    }
+
+    function renderAiStatus() {
+      const status = state.aiStatus;
+      if (!status) {
+        elements.aiStatusBadge.textContent = "Klar";
+        elements.aiStatusPanel.innerHTML = `<div class="empty">AI-status vises etter første analyse.</div>`;
+        return;
+      }
+
+      elements.aiStatusBadge.textContent = status.warning ? "Feil" : `${status.simulations} simuleringer`;
+      const fleetRows = Object.keys(FLEET_DISTRIBUTION).map(Number).map((length) => {
+        const total = FLEET_DISTRIBUTION[length];
+        const sunk = status.sunkByLength[length] || 0;
+        const remaining = Math.max(0, total - sunk);
+        return `<div class="ai-status-row"><span>${length}-ruters båt${total === 1 ? "" : "er"}</span><strong>${remaining} av ${total} gjenstår</strong></div>`;
+      }).join("");
+
+      elements.aiStatusPanel.innerHTML = `
+        ${status.warning ? `<div class="ai-warning">Registreringene ser ut til å inneholde en feil. Nåværende data kan ikke danne et lovlig Battleship-brett.<br>${status.warning}</div>` : ""}
+        <div class="ai-status-row"><span>Totalt antall båter</span><strong>${FLEET_LENGTHS.length}</strong></div>
+        <div class="ai-status-row"><span>Gjenværende båter</span><strong>${status.remainingShips}</strong></div>
+        ${fleetRows}
+        <div class="ai-status-row"><span>Antall lovlige simuleringer</span><strong>${status.simulations}${status.capped ? "+" : ""}</strong></div>
+        <div class="ai-status-row"><span>Beste skudd akkurat nå</span><strong>${status.bestCoordinate || "Ingen"}</strong></div>
+        <div class="ai-status-row"><span>Høyeste sannsynlighet</span><strong>${status.bestPercent || 0}%</strong></div>
+      `;
+    }
+
+    function renderAll() {
+      renderBoard();
+      renderStats();
+      renderAiList();
+      renderAiStatus();
+      renderSunkList();
+      renderLog();
+      updateHistoryButtons();
+    }
+
+    async function loadShots(showSpinner = false) {
+      if (!hasSupabaseClient()) return;
+      if (showSpinner) setLoading(true);
+      try {
+        const { data, error } = await supabaseClient
+          .from(TABLE)
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          setStatus("Feil ved lasting", "error");
+          elements.lastSync.textContent = "Supabase svarte med feil";
+          toast(friendlyNetworkError(error), "bad");
+          renderAll();
+          return;
+        }
+
+        state.shots = data || [];
+        const result = analyzeBoard();
+        state.aiSuggestions = result.suggestions;
+        state.heatmap = result.heatmap;
+        elements.lastSync.textContent = `Sist oppdatert ${nowLabel()}`;
+        setStatus("Sanntid aktiv", "online");
+        renderAll();
+      } catch (error) {
+        setStatus("Feil ved lasting", "error");
+        elements.lastSync.textContent = "Supabase er ikke tilgjengelig";
+        toast(friendlyNetworkError(error), "bad");
+        renderAll();
+      } finally {
+        if (showSpinner) setLoading(false);
+      }
+    }
+
+    function getExistingShot(team, coordinate) {
+      return state.shots.find((shot) => shot.team === team && shot.coordinate === coordinate);
+    }
+
+    function buildShot(team, coordinate, result, sunkCoordinates = []) {
+      const coord = normalizeCoordinate(coordinate);
+      return {
+        team,
+        result: result === "sunk" ? "hit" : result,
+        ...coord,
+        client_id: result === "sunk" ? createSunkClientId(sunkCoordinates) : clientId
+      };
+    }
+
+    function snapshotAction(type, team, coordinates) {
+      const before = coordinates.map((coordinate) => getExistingShot(team, coordinate)).filter(Boolean);
+      return { type, team, coordinates: [...coordinates], before };
+    }
+
+    async function insertShots(rows) {
+      if (!rows.length || !hasSupabaseClient()) return { error: null };
+      return supabaseClient.from(TABLE).insert(rows);
+    }
+
+    async function replaceShots(rows) {
+      if (!rows.length || !hasSupabaseClient()) return { error: null };
+      const byTeam = rows.reduce((groups, row) => {
+        if (!groups[row.team]) groups[row.team] = [];
+        groups[row.team].push(row.coordinate);
+        return groups;
+      }, {});
+
+      for (const [team, coordinates] of Object.entries(byTeam)) {
+        const deleteResult = await deleteShots(team, coordinates);
+        if (deleteResult.error) return deleteResult;
+      }
+
+      return insertShots(rows);
+    }
+
+    async function deleteShots(team, coordinates) {
+      if (!coordinates.length || !hasSupabaseClient()) return { error: null };
+      return supabaseClient.from(TABLE).delete().eq("team", team).in("coordinate", coordinates);
+    }
+
+    async function applyAction(type) {
+      const coordinates = sortCoordinates(state.selected);
+      if (!coordinates.length) {
+        toast("Velg en rute først.", "warn");
+        return;
+      }
+
+      if (type === "sunk" && !areContiguous(coordinates)) {
+        toast("Marker sunket krever én eller flere sammenhengende ruter i rett linje.", "bad");
+        return;
+      }
+
+      const existing = coordinates.filter((coordinate) => getExistingShot(state.activeTeam, coordinate));
+      if (existing.length && type !== "remove") {
+        const ok = confirm(`${existing.join(", ")} har allerede registrering. Vil du overskrive?`);
+        if (!ok) return;
+      }
+
+      const action = snapshotAction(type, state.activeTeam, coordinates);
+      setLoading(true);
+      let response;
+      if (type === "remove") {
+        response = await deleteShots(state.activeTeam, coordinates);
+      } else {
+        const rows = coordinates.map((coordinate) => buildShot(state.activeTeam, coordinate, type, coordinates));
+        response = await replaceShots(rows);
+      }
+      setLoading(false);
+
+      if (response.error) {
+        toast(response.error.message, "bad");
+        await loadShots();
+        return;
+      }
+
+      state.undoStack.push(action);
+      state.redoStack = [];
+      state.selected = [];
+      closeDrawer();
+      toast(type === "remove" ? "Registrering fjernet." : `${RESULT_LABEL[type]} lagret.`, "good");
+      await loadShots();
+    }
+
+    async function restoreSnapshot(action, reverse = false) {
+      if (!action) return;
+      setLoading(true);
+      let response;
+
+      if (!reverse) {
+        await deleteShots(action.team, action.coordinates);
+        response = await insertShots(action.before.map((shot) => ({
+          team: shot.team,
+          result: shot.result,
+          coordinate: shot.coordinate,
+          row_label: shot.row_label,
+          col_number: shot.col_number,
+          client_id: shot.client_id
+        })));
+      } else if (action.type === "remove") {
+        response = await deleteShots(action.team, action.coordinates);
+      } else {
+        const rows = action.coordinates.map((coordinate) => buildShot(action.team, coordinate, action.type, action.coordinates));
+        response = await replaceShots(rows);
+      }
+
+      setLoading(false);
+      if (response && response.error) {
+        toast(response.error.message, "bad");
+        await loadShots();
+        return;
+      }
+      await loadShots();
+    }
+
+    async function undo() {
+      const action = state.undoStack.pop();
+      if (!action) {
+        toast("Ingen trekk å angre.", "warn");
+        return;
+      }
+      await restoreSnapshot(action, false);
+      state.redoStack.push(action);
+      toast("Trekk angret.", "good");
+      updateHistoryButtons();
+    }
+
+    async function redo() {
+      const action = state.redoStack.pop();
+      if (!action) {
+        toast("Ingen trekk å gjøre om.", "warn");
+        return;
+      }
+      await restoreSnapshot(action, true);
+      state.undoStack.push(action);
+      toast("Trekk gjort om.", "good");
+      updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+      elements.undoButton.disabled = state.undoStack.length === 0;
+      elements.redoButton.disabled = state.redoStack.length === 0;
+    }
+
+    function chooseCell(coordinate, additive = false) {
+      const normalized = normalizeCoordinate(coordinate);
+      if (!normalized) return;
+      const coord = normalized.coordinate;
+      const now = Date.now();
+      if (state.lastTapCoord === coord && now - state.lastTapAt < 320) {
+        setZoom(state.zoom > 1 ? 1 : 1.55, coord);
+      }
+      state.lastTapAt = now;
+      state.lastTapCoord = coord;
+
+      if (!additive && state.selected.length && !state.selected.includes(coord)) {
+        additive = areContiguous([...state.selected, coord]);
+      }
+
+      if (additive) {
+        state.selected = state.selected.includes(coord)
+          ? state.selected.filter((item) => item !== coord)
+          : sortCoordinates([...state.selected, coord]);
+      } else if (state.selected.includes(coord) && state.selected.length === 1) {
+        state.selected = [coord];
+      } else {
+        state.selected = [coord];
+      }
+      state.focused = coord;
+      renderBoard();
+      openDrawer();
+    }
+
+    function updateDrawer() {
+      const count = state.selected.length;
+      elements.drawer.classList.toggle("open", count > 0);
+      if (!count) return;
+      const sorted = sortCoordinates(state.selected);
+      elements.selectedCoordinate.textContent = sorted.length === 1 ? sorted[0] : `${sorted[0]}–${sorted[sorted.length - 1]}`;
+      elements.selectedMeta.textContent = `${count} rute${count === 1 ? "" : "r"} valgt`;
+      elements.sunkAction.disabled = !areContiguous(sorted);
+    }
+
+    function openDrawer() {
+      updateDrawer();
+    }
+
+    function closeDrawer() {
+      state.selected = [];
+      elements.drawer.classList.remove("open");
+      renderBoard();
+    }
+
+    function focusCoordinate(coordinate, team = state.activeTeam) {
+      const coord = normalizeCoordinate(coordinate);
+      if (!coord) return false;
+      state.activeTeam = team;
+      state.focused = coord.coordinate;
+      state.selected = [coord.coordinate];
+      renderAll();
+      const node = elements.board.querySelector(`[data-coordinate="${coord.coordinate}"]`);
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+      openDrawer();
+      return true;
+    }
+
+    function setActiveTeam(team) {
+      state.activeTeam = team;
+      state.selected = [];
+      const result = analyzeBoard();
+      state.aiSuggestions = result.suggestions;
+      state.heatmap = result.heatmap;
+      renderAll();
+    }
+
+    function getFleetState(team, map) {
+      const sunkShips = calculateSunkShips(team);
+      const sunkByLength = {};
+      const remainingCounts = { ...FLEET_DISTRIBUTION };
+      const errors = [];
+
+      sunkShips.forEach((ship) => {
+        if (!FLEET_DISTRIBUTION[ship.size]) {
+          errors.push(`Det finnes ingen lovlig båt på ${ship.size} ruter.`);
+          return;
+        }
+        sunkByLength[ship.size] = (sunkByLength[ship.size] || 0) + 1;
+        remainingCounts[ship.size] -= 1;
+        if (remainingCounts[ship.size] < 0) {
+          errors.push(`Det er markert flere sunkne ${ship.size}-ruters båter enn reglene tillater.`);
+        }
+      });
+
+      const sunkSet = new Set(sunkShips.flatMap((ship) => ship.coordinates));
+      const unsunkHits = [...map.values()].filter((shot) => shot.result === "hit" && !sunkSet.has(shot.coordinate));
+      const hitClusters = getContiguousHitClusters(unsunkHits);
+      hitClusters.forEach((cluster) => {
+        if (!areContiguous(cluster)) errors.push("Registrerte treff krever en diagonal eller bøyd båt.");
+        if (cluster.length > 6) errors.push("Det måtte eksistert en båt på mer enn 6 ruter.");
+      });
+
+      return { sunkShips, sunkSet, sunkByLength, remainingCounts, unsunkHits, errors };
+    }
+
+    function getContiguousHitClusters(unsunkHits) {
+      const hitMap = new Map(unsunkHits.map((shot) => [shot.coordinate, shot]));
+      const visited = new Set();
+      const clusters = [];
+
+      unsunkHits.forEach((shot) => {
+        if (visited.has(shot.coordinate)) return;
+        const stack = [shot.coordinate];
+        const coordinates = [];
+        visited.add(shot.coordinate);
+
+        while (stack.length) {
+          const coordinate = stack.pop();
+          coordinates.push(coordinate);
+          const point = coordinateToPoint(coordinate);
+          [
+            pointToCoordinate(point.row - 1, point.col),
+            pointToCoordinate(point.row + 1, point.col),
+            pointToCoordinate(point.row, point.col - 1),
+            pointToCoordinate(point.row, point.col + 1)
+          ].filter(Boolean).forEach((neighbor) => {
+            if (!hitMap.has(neighbor) || visited.has(neighbor)) return;
+            visited.add(neighbor);
+            stack.push(neighbor);
+          });
+        }
+
+        clusters.push(sortCoordinates(coordinates));
+      });
+
+      return clusters;
+    }
+
+    function getLegalPlacementsForFleet(map, sunkSet, remainingCounts) {
+      const placements = [];
+      const directions = [
+        { dr: 0, dc: 1, orientation: "vannrett" },
+        { dr: 1, dc: 0, orientation: "loddrett" }
+      ];
+
+      ROWS.forEach((row, rowIndex) => {
+        COLS.forEach((col, colIndex) => {
+          directions.forEach((direction) => {
+            for (let length = 1; length <= 6; length += 1) {
+              if (!remainingCounts[length]) continue;
+              if (length === 1 && direction.orientation === "loddrett") continue;
+              const coordinates = [];
+              for (let step = 0; step < length; step += 1) {
+                const coordinate = pointToCoordinate(rowIndex + direction.dr * step, colIndex + direction.dc * step);
+                if (coordinate) coordinates.push(coordinate);
+              }
+              if (coordinates.length !== length) continue;
+              const blocked = coordinates.some((coordinate) => {
+                const shot = map.get(coordinate);
+                return sunkSet.has(coordinate) || (shot && shot.result === "miss");
+              });
+              if (!blocked) placements.push({
+                coordinates,
+                length,
+                orientation: direction.orientation,
+                key: coordinates.join("-")
+              });
+            }
+          });
+        });
+      });
+
+      return placements;
+    }
+
+    function analyzeBoard(team = state.activeTeam) {
+      const map = getShotMap(team);
+      const fleet = getFleetState(team, map);
+      const remainingShips = Object.values(fleet.remainingCounts).reduce((sum, count) => sum + Math.max(0, count), 0);
+      const emptyCoordinates = getAllCoordinates().filter((coordinate) => !map.has(coordinate));
+      const heatCounts = new Map(emptyCoordinates.map((coordinate) => [coordinate, {
+        coordinate,
+        count: 0,
+        lengths: new Set(),
+        hitSupport: 0,
+        placementCount: 0
+      }]));
+
+      const status = {
+        simulations: 0,
+        capped: false,
+        warning: "",
+        sunkByLength: fleet.sunkByLength,
+        remainingShips,
+        bestCoordinate: "",
+        bestPercent: 0
+      };
+
+      if (fleet.errors.length || Object.values(fleet.remainingCounts).some((count) => count < 0)) {
+        status.warning = fleet.errors[0] || "Båtfordelingen er brutt.";
+        state.aiStatus = status;
+        return { suggestions: [], heatmap: new Map(), status };
+      }
+
+      const placements = getLegalPlacementsForFleet(map, fleet.sunkSet, fleet.remainingCounts);
+      const placementsByLength = new Map();
+      placements.forEach((placement) => {
+        if (!placementsByLength.has(placement.length)) placementsByLength.set(placement.length, []);
+        placementsByLength.get(placement.length).push(placement);
+      });
+
+      const hitSet = new Set(fleet.unsunkHits.map((shot) => shot.coordinate));
+      const started = performance.now();
+      const placed = [];
+
+      function collides(placement, occupied) {
+        return placement.coordinates.some((coordinate) => occupied.has(coordinate));
+      }
+
+      function placementRank(placement) {
+        const points = placement.coordinates.map(coordinateToPoint);
+        const avgRow = points.reduce((sum, point) => sum + point.row, 0) / points.length;
+        const avgCol = points.reduce((sum, point) => sum + point.col, 0) / points.length;
+        const centerDistance = Math.abs(avgRow - 7) + Math.abs(avgCol - 7);
+        return centerDistance * 100 + avgRow * 15 + avgCol;
+      }
+
+      function recordSimulation() {
+        status.simulations += 1;
+        const seen = new Set();
+        placed.forEach((placement) => {
+          const coversHit = placement.coordinates.some((coordinate) => hitSet.has(coordinate));
+          placement.coordinates.forEach((coordinate) => {
+            if (map.has(coordinate) || seen.has(coordinate)) return;
+            const item = heatCounts.get(coordinate);
+            if (!item) return;
+            item.count += 1;
+            item.lengths.add(placement.length);
+            item.placementCount += 1;
+            if (coversHit) item.hitSupport += 1;
+            seen.add(coordinate);
+          });
+        });
+      }
+
+      function chooseNext(remainingCounts, uncoveredHits, occupied) {
+        if (uncoveredHits.size) {
+          let best = null;
+          uncoveredHits.forEach((hit) => {
+            const candidates = Object.keys(remainingCounts).map(Number)
+              .filter((length) => remainingCounts[length] > 0)
+              .flatMap((length) => (placementsByLength.get(length) || []).filter((placement) => placement.coordinates.includes(hit) && !collides(placement, occupied)));
+            if (!best || candidates.length < best.candidates.length) best = { hit, candidates };
+          });
+          return best ? best.candidates.sort((a, b) => placementRank(a) - placementRank(b) || a.key.localeCompare(b.key, "no", { numeric: true })) : [];
+        }
+
+        const length = Object.keys(remainingCounts).map(Number)
+          .filter((candidate) => remainingCounts[candidate] > 0)
+          .sort((a, b) => b - a)[0];
+        return length
+          ? (placementsByLength.get(length) || [])
+            .filter((placement) => !collides(placement, occupied))
+            .sort((a, b) => placementRank(a) - placementRank(b) || a.key.localeCompare(b.key, "no", { numeric: true }))
+          : [];
+      }
+
+      function search(remainingCounts, uncoveredHits, occupied, budget = AI_SIMULATION_LIMIT) {
+        const localStart = status.simulations;
+        if (status.simulations >= AI_SIMULATION_LIMIT || performance.now() - started > AI_TIME_LIMIT_MS) {
+          status.capped = true;
+          return;
+        }
+        const shipsLeft = Object.values(remainingCounts).reduce((sum, count) => sum + Math.max(0, count), 0);
+        if (!shipsLeft) {
+          if (!uncoveredHits.size) recordSimulation();
+          return;
+        }
+
+        const candidates = chooseNext(remainingCounts, uncoveredHits, occupied);
+        const childBudget = Math.max(1, Math.ceil(budget / Math.max(1, candidates.length)));
+        for (const placement of candidates) {
+          if (status.simulations - localStart >= budget) {
+            status.capped = true;
+            break;
+          }
+          if (remainingCounts[placement.length] <= 0 || collides(placement, occupied)) continue;
+          const nextRemaining = { ...remainingCounts, [placement.length]: remainingCounts[placement.length] - 1 };
+          const nextUncovered = new Set(uncoveredHits);
+          const nextOccupied = new Set(occupied);
+          placement.coordinates.forEach((coordinate) => {
+            nextUncovered.delete(coordinate);
+            nextOccupied.add(coordinate);
+          });
+          placed.push(placement);
+          search(nextRemaining, nextUncovered, nextOccupied, childBudget);
+          placed.pop();
+          if (performance.now() - started > AI_TIME_LIMIT_MS || status.simulations >= AI_SIMULATION_LIMIT) break;
+        }
+      }
+
+      search(fleet.remainingCounts, hitSet, new Set());
+
+      if (!status.simulations) {
+        status.warning = "Ingen lovlige komplette flåtesimuleringer forklarer alle treff, bom og sunkne båter.";
+      }
+
+      const values = [...heatCounts.values()].filter((item) => item.count > 0);
+      values.forEach((item) => {
+        item.percent = status.simulations ? Math.round((item.count / status.simulations) * 100) : 0;
+        const lengths = [...item.lengths].sort((a, b) => a - b);
+        item.shipText = lengths.length
+          ? `Kan være del av ${lengths.map((length) => `${length}-ruters`).join(", ")} båt.`
+          : "Ingen gjenværende båt passer her.";
+        const reasons = [];
+        if (item.hitSupport) reasons.push("Passer med eksisterende treff");
+        reasons.push("Inngår i flest lovlige simuleringer");
+        reasons.push(`${item.count} av ${status.simulations} komplette flåteforklaringer inkluderer ruten`);
+        item.reason = `${item.shipText} ${reasons.join(". ")}.`;
+      });
+
+      values.sort((a, b) => b.percent - a.percent || b.count - a.count || a.coordinate.localeCompare(b.coordinate, "no", { numeric: true }));
+      const best = values[0];
+      status.bestCoordinate = best ? best.coordinate : "";
+      status.bestPercent = best ? best.percent : 0;
+      state.aiStatus = status;
+      const heatmap = new Map(values.map((item) => [item.coordinate, item]));
+      return { suggestions: values.slice(0, MAX_AI_SUGGESTIONS), heatmap, status };
+    }
+    function runAiAnalysis() {
+      const result = analyzeBoard();
+      state.aiSuggestions = result.suggestions;
+      state.heatmap = result.heatmap;
+      renderAll();
+      if (result.status && result.status.warning) {
+        toast("Registreringene ser ut til å inneholde en feil. Nåværende data kan ikke danne et lovlig Battleship-brett.", "bad");
+      } else if (state.aiSuggestions[0]) {
+        toast(`Beste forslag: ${state.aiSuggestions[0].coordinate} (${state.aiSuggestions[0].percent}%).`, "good");
+      } else {
+        toast("AI fant ingen ledige ruter.", "warn");
+      }
+    }
+
+    function applySearch() {
+      const value = elements.searchInput.value.trim();
+      if (!value) return;
+      const coord = normalizeCoordinate(value);
+      if (!coord) {
+        toast("Søk må være en rute fra A1 til O15.", "bad");
+        return;
+      }
+      focusCoordinate(coord.coordinate);
+      setZoom(Math.max(state.zoom, 1.25), coord.coordinate);
+    }
+
+    function setZoom(value, coordinate = "") {
+      state.zoom = Math.min(2.4, Math.max(.72, value));
+      elements.boardScale.style.transform = `scale(${state.zoom})`;
+      elements.boardScale.style.marginRight = `${(state.zoom - 1) * elements.board.offsetWidth}px`;
+      elements.boardScale.style.marginBottom = `${(state.zoom - 1) * elements.board.offsetHeight}px`;
+      elements.zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
+      if (coordinate) {
+        window.setTimeout(() => {
+          const node = elements.board.querySelector(`[data-coordinate="${coordinate}"]`);
+          if (node) node.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+        }, 40);
+      }
+    }
+
+    function exportPayload() {
+      const sunkShips = ["blue", "red"].flatMap((team) => calculateSunkShips(team));
+      return {
+        exported_at: new Date().toISOString(),
+        app: "POWER Battleship Tracker",
+        sunk_ships: sunkShips.map(({ team, size, from, to, coordinates }) => ({ team, size, from, to, coordinates })),
+        shots: state.shots.map(({ id, team, result, coordinate, row_label, col_number, client_id, created_at }) => ({
+          id,
+          team,
+          result: isSunkShot({ result, client_id }) ? "sunk" : result,
+          coordinate,
+          row_label,
+          col_number,
+          client_id,
+          created_at
+        }))
+      };
+    }
+
+    function exportJson() {
+      elements.jsonBox.value = JSON.stringify(exportPayload(), null, 2);
+      toast("JSON eksportert til tekstfeltet.", "good");
+    }
+
+    async function copyJson() {
+      if (!elements.jsonBox.value.trim()) exportJson();
+      await navigator.clipboard.writeText(elements.jsonBox.value);
+      toast("JSON kopiert.", "good");
+    }
+
+    function downloadBackup() {
+      const payload = JSON.stringify(exportPayload(), null, 2);
+      const blob = new Blob([payload], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `power-battleship-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast("Backup lastet ned.", "good");
+    }
+
+    function normalizeImportedShot(raw) {
+      const coord = normalizeCoordinate(raw.coordinate);
+      const team = String(raw.team || "").toLowerCase();
+      const result = String(raw.result || "").toLowerCase();
+      if (!coord || !["blue", "red"].includes(team) || !["hit", "miss", "sunk"].includes(result)) return null;
+      const importedClientId = String(raw.client_id || "");
+      return {
+        team,
+        result: result === "sunk" ? "hit" : result,
+        ...coord,
+        client_id: result === "sunk"
+          ? (importedClientId.includes(SUNK_MARKER) ? importedClientId : `${clientId}${SUNK_MARKER}${coord.coordinate}`)
+          : (importedClientId || clientId)
+      };
+    }
+
+    function normalizeImportedSunkShip(raw) {
+      const team = String(raw.team || "").toLowerCase();
+      if (!["blue", "red"].includes(team)) return [];
+      let fullRange = [];
+      if (Array.isArray(raw.coordinates)) {
+        const coordinates = sortCoordinates(raw.coordinates);
+        if (!coordinates.length || !areContiguous(coordinates)) return [];
+        fullRange = coordinates;
+      } else {
+        const from = raw.from || raw.start;
+        const to = raw.to || raw.end || from;
+        if (!from || !to) return [];
+        fullRange = fillRange(from, to);
+      }
+      if (!fullRange.length || !areContiguous(fullRange)) return [];
+      const sunkClientId = createSunkClientId(fullRange);
+      return fullRange.map((coordinate) => buildShot(team, coordinate, "sunk", fullRange))
+        .map((shot) => ({ ...shot, client_id: sunkClientId }));
+    }
+
+    function fillRange(from, to) {
+      const start = coordinateToPoint(from);
+      const end = coordinateToPoint(to);
+      if (!start || !end) return [];
+      const coordinates = [];
+      const rowStep = Math.sign(end.row - start.row);
+      const colStep = Math.sign(end.col - start.col);
+      const length = Math.max(Math.abs(end.row - start.row), Math.abs(end.col - start.col));
+      for (let index = 0; index <= length; index += 1) {
+        coordinates.push(pointToCoordinate(start.row + rowStep * index, start.col + colStep * index));
+      }
+      return sortCoordinates(coordinates);
+    }
+
+    async function importJson() {
+      let parsed;
+      try {
+        parsed = JSON.parse(elements.jsonBox.value);
+      } catch {
+        toast("JSON kunne ikke leses.", "bad");
+        return;
+      }
+
+      const inputShots = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.shots) ? parsed.shots : []);
+      const sunkShips = Array.isArray(parsed.sunk_ships) ? parsed.sunk_ships : [];
+      const normalized = [
+        ...inputShots.map(normalizeImportedShot).filter(Boolean),
+        ...sunkShips.flatMap(normalizeImportedSunkShip)
+      ];
+
+      if (!normalized.length) {
+        toast("Fant ingen gyldige registreringer å importere.", "bad");
+        return;
+      }
+
+      const unique = Array.from(new Map(normalized.map((shot) => [`${shot.team}:${shot.coordinate}`, shot])).values());
+      setLoading(true);
+      const { error } = await replaceShots(unique);
+      setLoading(false);
+
+      if (error) {
+        toast(error.message, "bad");
+        return;
+      }
+
+      toast(`${unique.length} registreringer importert.`, "good");
+      await loadShots();
+    }
+
+    async function resetBoard() {
+      const ok = confirm("Er du sikker på at du vil nullstille hele brettet? Dette sletter alle skudd.");
+      if (!ok || !hasSupabaseClient()) return;
+      setLoading(true);
+      const { error } = await supabaseClient.from(TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      setLoading(false);
+      if (error) {
+        toast(error.message, "bad");
+        return;
+      }
+      state.undoStack = [];
+      state.redoStack = [];
+      state.selected = [];
+      toast("Brettet er nullstilt.", "good");
+      await loadShots();
+    }
+
+    function setupRealtime() {
+      if (!hasSupabaseClient()) return;
+      supabaseClient
+        .channel("battleship-tracker")
+        .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => {
+          window.clearTimeout(state.realtimeRefreshTimer);
+          state.realtimeRefreshTimer = window.setTimeout(() => loadShots(false), 120);
+        })
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") setStatus("Sanntid aktiv", "online");
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setStatus("Sanntid frakoblet", "error");
+        });
+    }
+
+    function wireEvents() {
+      elements.blueTeam.addEventListener("click", () => setActiveTeam("blue"));
+      elements.redTeam.addEventListener("click", () => setActiveTeam("red"));
+      elements.board.addEventListener("click", (event) => {
+        const cell = event.target.closest("[data-coordinate]");
+        if (!cell) return;
+        chooseCell(cell.dataset.coordinate, event.shiftKey || event.ctrlKey || event.metaKey);
+      });
+      elements.board.addEventListener("contextmenu", (event) => {
+        const cell = event.target.closest("[data-coordinate]");
+        if (!cell) return;
+        event.preventDefault();
+        chooseCell(cell.dataset.coordinate, true);
+      });
+      elements.aiButton.addEventListener("click", runAiAnalysis);
+      elements.heatToggle.addEventListener("change", () => {
+        state.heatmapEnabled = elements.heatToggle.checked;
+        const result = analyzeBoard();
+        state.aiSuggestions = result.suggestions;
+        state.heatmap = result.heatmap;
+        renderAll();
+      });
+      elements.searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") applySearch();
+      });
+      elements.searchInput.addEventListener("change", applySearch);
+      elements.zoomOut.addEventListener("click", () => setZoom(state.zoom - .15, state.focused));
+      elements.zoomIn.addEventListener("click", () => setZoom(state.zoom + .15, state.focused));
+      elements.undoButton.addEventListener("click", undo);
+      elements.redoButton.addEventListener("click", redo);
+      elements.refreshButton.addEventListener("click", () => loadShots(true));
+      elements.clearSelectionButton.addEventListener("click", closeDrawer);
+      elements.closeDrawer.addEventListener("click", closeDrawer);
+      elements.hitAction.addEventListener("click", () => applyAction("hit"));
+      elements.missAction.addEventListener("click", () => applyAction("miss"));
+      elements.sunkAction.addEventListener("click", () => applyAction("sunk"));
+      elements.removeAction.addEventListener("click", () => applyAction("remove"));
+      elements.logFilter.addEventListener("change", renderLog);
+      elements.logList.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-coordinate]");
+        if (!item) return;
+        focusCoordinate(item.dataset.coordinate, item.dataset.team);
+      });
+      elements.aiList.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-coordinate]");
+        if (!item) return;
+        focusCoordinate(item.dataset.coordinate);
+      });
+      elements.sunkList.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-coordinate]");
+        if (!item) return;
+        focusCoordinate(item.dataset.coordinate);
+      });
+      elements.exportButton.addEventListener("click", exportJson);
+      elements.copyButton.addEventListener("click", copyJson);
+      elements.importButton.addEventListener("click", importJson);
+      elements.clearJsonButton.addEventListener("click", () => { elements.jsonBox.value = ""; });
+      elements.downloadBackupButton.addEventListener("click", downloadBackup);
+      elements.resetButton.addEventListener("click", resetBoard);
+    }
+
+    wireEvents();
+    setZoom(1);
+    setupRealtime();
+    loadShots(true);
+  })();
+  </script>
+</body>
+</html>
