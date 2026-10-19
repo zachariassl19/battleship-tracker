@@ -28,3 +28,5 @@ jobs:
         run: node --check secret-sync.js
       - name: Test encryption and fleet validation
         run: node --test tests/secret-sync.test.cjs
+      - name: Test grid tap coordinates
+        run: node --test tests/grid-coordinates.test.cjs
