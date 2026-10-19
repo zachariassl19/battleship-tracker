@@ -2,14 +2,29 @@
   "schema": 1,
   "title": "POWER Halden vs. Ski",
   "started_at": "2026-10-19",
-  "updated_at": null,
+  "updated_at": "2026-10-19T11:28:09.557Z",
   "shots": {
     "ski": {},
-    "halden": {}
+    "halden": {
+      "J8": "miss"
+    }
   },
   "sunk": {
     "ski": [],
     "halden": []
   },
-  "history": []
+  "history": [
+    {
+      "kind": "shot",
+      "board": "halden",
+      "coords": [
+        "J8"
+      ],
+      "previous": {
+        "J8": null
+      },
+      "value": "miss",
+      "at": "2026-10-19T11:28:09.557Z"
+    }
+  ]
 }
