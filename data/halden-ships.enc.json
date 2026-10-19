@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "algorithm": "AES-256-GCM",
+  "kdf": "PBKDF2-SHA256",
+  "iterations": 600000,
+  "salt": "H+JsH837D2K89SdS/YTLBg==",
+  "iv": "KpXzlkc1/XYUL3J+",
+  "ciphertext": "otwPTYsNOm7nd9j4j0tv3OH+imlDu+0+m0Sp4xxOtfdO8w=="
+}
