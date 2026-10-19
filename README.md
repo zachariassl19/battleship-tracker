@@ -6,7 +6,7 @@ Dette er en **GitHub-basert** Battleship Tracker uten Supabase, Firebase eller a
 
 - **Tilskuere:** Alle kan åpne den offentlige GitHub Pages-nettsiden uten innlogging. Brettene oppdateres automatisk hvert 30. sekund fra `data/game.json` på GitHub. Dette er ikke øyeblikkelig sanntid: GitHub sin mellomlagring kan gi noe ekstra forsinkelse.
 - **Redaktør:** Bare GitHub-brukeren `zachariassl19` kan logge inn i redigeringsmodus. Endringer sendes til GitHub Contents API og lagres som commits i `data/game.json`.
-- **Halden sine skjulte skip:** Plasseres og lagres kun i **localStorage på redaktørens enhet**. De publiseres aldri i GitHub. Bruk privat sikkerhetskopi ved bytte av enhet.
+- **Halden sine skjulte skip:** Krypteres lokalt med **AES-256-GCM** og PBKDF2-SHA256 (600 000 runder) før de synkroniseres som kryptert fil på GitHub. Selve koordinatene publiseres aldri i klartekst. PC og mobil kan åpne dem med det **samme hemmelige passordet**.
 - **Ski-brettet:** Haldens skudd mot Ski. **Halden-brettet:** Skis skudd mot Halden.
 - **Flåte:** 9 skip, totalt 29 ruter, A–L og 1–10. Senkede skip registreres separat fra senkede ruter, slik at opptellingen blir riktig.
 - Gammelt Battleship ligger fortsatt i Git-historikken. Gamle skudd importeres ikke i den nye konkurransen.
@@ -30,11 +30,19 @@ Hvis Pages allerede er satt opp, skal det være nok å slå sammen endringene ti
 
 GitHub tar seg av den reelle tilgangskontrollen ved hver publisering. Å kjenne nettsidens adresse gir ikke rett til å redigere.
 
-## Bevar hemmelig plassering
+## PC og mobil: hemmelig skipskart på begge enheter
 
-Skip plasseres under **Halden → Plasser Halden-skip**. De synkroniseres **ikke** til andre enheter og er ikke tilgjengelige på nytt hvis nettleserdata slettes. Bruk **Last ned privat sikkerhetskopi** og oppbevar filen privat. Bruk **Gjenopprett privat sikkerhetskopi** på en annen enhet.
+1. Åpne Battleship på PC, klikk **Rediger** og lim inn en begrenset GitHub-token som tilhører `zachariassl19` og kan oppdatere repository-innhold.
+2. Når **Hemmelig skipskart** dukker opp for første gang, klikk **Generer sikkert passord**. Lagre passordet i en passordbehandler og trykk **Lås opp / start synkronisering**.
+3. Plasser Halden-skip under **Halden → Plasser Halden-skip**. Hver endring blir kryptert lokalt og lagret i `data/halden-ships.enc.json` på GitHub.
+4. Åpne Battleship på mobilen, logg inn med GitHub-token og bruk **det samme hemmelige skipskart-passordet**. Kartet dekrypteres på mobilen og kan redigeres der også.
+5. Hvis begge enheter står åpne, henter appen nye plasseringer automatisk omtrent hvert 30. sekund. Hvis en annen enhet endret kartet i mellomtiden blir en foreldet redigering avvist i stedet for å overskrive.
 
-**Viktig:** Ikke legg private skipsfiler under `data/`, i repository, i Issues eller i en offentlig chat. Bare `data/game.json` er ment for offentlig visning.
+**Sikkerhet:** Skipskartpassordet sendes ikke til GitHub og lagres ikke permanent i nettleseren. Kryptert data ligger i et **offentlig** repository, så bruk appens tilfeldig genererte passord for å motstå passordgjetting. GitHub-token lagres bare i minnet til den åpne fanen. Du må logge inn og låse opp igjen ved ny fane/nytt besøk.
+
+Ved første oppsett flyttes eventuelle eksisterende skip fra den gamle nettleserlagringen over i kryptert form og gammel lokal lagring fjernes når opplastingen lykkes. Valgfri privat JSON-sikkerhetskopi er **ukryptert** og må oppbevares sikkert, aldri i et offentlig repository, i Issues eller i åpne chatter. Hvis du mister skipskartpassordet kan ikke den krypterte filen gjenopprettes uten en privat ukryptert sikkerhetskopi.
+
+`data/game.json` er fortsatt offentlig kampdata, mens `data/halden-ships.enc.json` kun inneholder kryptert skipskart.
 
 ## Skudd og angre
 
@@ -46,6 +54,6 @@ Du kan velge flere ruter og registrere alle treff eller bom i én publisering. H
 - **Kampdata mangler:** Kontroller at `data/game.json` finnes på `main`.
 - **Redigering feiler:** Kontroller token, GitHub-brukeren, repository-tilgangen og Contents: Read and write. En utgått token må erstattes.
 - **Treff vises ikke hos tilskuere med en gang:** Vent et lite minutt, og last inn siden på nytt. GitHub Raw kan være mellomlagret.
-- **Våre skip er borte:** Du må bruke den samme nettleseren/enheten eller importere en privat sikkerhetskopi.
+- **Våre skip er borte:** Logg inn og lås opp med samme skipskartpassord på begge enheter. Hvis passordet er glemt kan kryptert data ikke dekrypteres; bruk din private sikkerhetskopi.
 
 Dette prosjektet berører ikke Supabase-prosjektene EHL Tips og Mitt Storhamar.
