@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const html=fs.readFileSync("index.html","utf8");
 const script=(html.match(/<script>([\s\S]*?)<\/script>/)||[])[1];
 function fn(name,next){
- const start=script.indexOf((name.startsWith("async")?"async ":"")+"function "+name.replace(/^async /,"")+"(");
+ const start=script.indexOf("async function "+name+"(");
  assert.ok(start>=0,"Missing "+name);
  const end=script.indexOf(next,start+10);
  assert.ok(end>start,"Missing next boundary");
@@ -25,10 +25,8 @@ test("mobile quick action controls exist and are wired up",()=>{
 });
 test("ship placement button opens unlock rather than staying disabled",async()=>{
  const code=fn("switchMode","function planned(");
- let target="ski",mode="shots",secretUnlocked=false,clears=0,renders=0,unlocks=0;
+ let clears=0,renders=0,unlocks=0;
  const selected={clear(){clears++}};
- const impl=new Function("env",code+
-   "\nreturn async function run(){await switchMode('ships'); return {target,mode}};");
  // Inject closure values from a test-created lexical scope.
  const runner=new Function("selected","render","inspectSecret",
    "let target='ski',mode='shots',secretUnlocked=false;\n"+code+
