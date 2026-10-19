@@ -143,6 +143,18 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
  <div class="row" style="margin-top:12px"><button id="generatePass" class="btn" type="button">🎲 Generer automatisk (valgfritt)</button><button id="toggleSecret" class="btn" type="button" aria-pressed="false">👁 Vis passord</button><button id="copySecret" class="btn" type="button">Kopier passord</button></div>
  <p class="note" id="secretMsg" role="status">Minst 12 tegn. Velg en vanskelig passfrase du ikke bruker andre steder. Anbefalt 16 tegn eller mer.</p>
  <div class="row" style="margin-top:15px"><button id="openSecret" class="btn primary" type="button">Lås opp / start synkronisering</button><button id="cancelSecret" class="btn" type="button">Avbryt</button></div>
+ <button type="button" class="btn danger hidden" id="forgotSecret" style="width:100%;margin-top:18px">🔑 Glemt passord? Lag nytt skipskart</button>
+ <p id="recoverHint" class="note hidden">Du kan fremdeles trykke Avbryt for å registrere treff og bom uten å låse opp skipskartet.</p>
+</dialog>
+<dialog id="resetSecretModal">
+ <h2>🔑 Nullstill hemmelig skipskart</h2>
+ <p class="text" style="margin-top:12px"><strong>Dette lager et nytt tomt skipskart.</strong> Tidligere hemmelige skipsplasseringer blir ikke tilgjengelige med det nye passordet. Registrerte skudd, bom og statistikk blir ikke slettet.</p>
+ <p class="note">Sjekk først om du fortsatt får åpnet skipene på en annen enhet eller har en privat sikkerhetskopi. Den forrige krypterte versjonen blir liggende i GitHub-historikken, men kan ikke dekrypteres uten det gamle passordet.</p>
+ <div style="margin-top:14px"><label for="resetPassword">Velg nytt skipskart-passord (minst 12 tegn)</label><input id="resetPassword" type="password" minlength="12" autocomplete="new-password" placeholder="Nytt hemmelig passord"></div>
+ <div style="margin-top:12px"><label for="resetPasswordAgain">Gjenta det nye passordet</label><input id="resetPasswordAgain" type="password" minlength="12" autocomplete="new-password" placeholder="Gjenta passord"></div>
+ <div style="margin-top:12px"><label for="resetConfirmation">Skriv NULLSTILL for å bekrefte</label><input id="resetConfirmation" type="text" autocomplete="off" spellcheck="false" placeholder="NULLSTILL"></div>
+ <p class="note" role="status" id="resetMessage"></p>
+ <div class="row" style="margin-top:16px"><button id="confirmReset" type="button" class="btn danger">Nullstill og bruk nytt passord</button><button id="cancelReset" type="button" class="btn">Avbryt</button></div>
 </dialog>
 <div id="toast" class="hidden" role="status"></div>
 <script src="secret-sync.js" defer></script>
@@ -165,7 +177,7 @@ var base={schema:1,title:"POWER Halden vs. Ski",updated_at:null,shots:{ski:{},ha
 var game=structuredClone(base),token="",authorized=false,busy=false,ready=false;
 var target="ski",mode="shots",selected=new Set(),ships={};
 var secretUnlocked=false,secretPassword="",secretSha=null,shipBusy=false,secretExists=false;
-var rememberThisDevice=false,restoringLogin=false;
+var rememberThisDevice=false,restoringLogin=false,resetExpectedSha=null;
 var $=function(id){return document.getElementById(id)};
 function toast(str){var x=$("toast");x.textContent=str;x.classList.remove("hidden");clearTimeout(toast.t);toast.t=setTimeout(function(){x.classList.add("hidden")},4300)}
 function status(str,good){$("sync").textContent=str;$("sync").className="pill "+(good?"live":"warn")}
@@ -362,6 +374,8 @@ function showSecretDialog(){
  $("secretPassLabel").textContent=secretExists?"Skipskart-passordet ditt":"Lag ditt eget skipskart-passord";
  $("secretPass").placeholder=secretExists?"Skriv inn passordet ditt":"Skriv minst 12 tegn";
  $("generatePass").classList.toggle("hidden",secretExists);
+ $("forgotSecret").classList.toggle("hidden",!secretExists);
+ $("recoverHint").classList.toggle("hidden",!secretExists);
  $("secretModal").showModal();
 }
 async function inspectSecret(){
@@ -398,6 +412,57 @@ async function unlockSecret(){
   toast("🔐 Hemmelige skip er synkronisert mellom enhetene.");
  }catch(e){$("secretMsg").textContent="Kunne ikke låse opp: "+e.message+" – ingen skip er endret."}
  finally{$("openSecret").disabled=false}
+}
+async function showResetDialog(){
+ if(!authorized||!secretExists)return;
+ try{
+  var current=await readEncryptedRemote();
+  if(!current.data||!current.sha)throw new Error("Det finnes ikke noe skipskart å nullstille.");
+  resetExpectedSha=current.sha;
+  $("resetPassword").value="";
+  $("resetPasswordAgain").value="";
+  $("resetConfirmation").value="";
+  $("resetMessage").textContent="Velg et nytt, unikt passord. Dette berører bare det hemmelige skipskartet.";
+  $("secretModal").close();
+  $("resetSecretModal").showModal();
+ }catch(e){$("secretMsg").textContent="Kunne ikke åpne nullstilling: "+e.message}
+}
+function closeResetDialog(){
+ $("resetSecretModal").close();
+ $("resetPassword").value="";$("resetPasswordAgain").value="";$("resetConfirmation").value="";
+ resetExpectedSha=null;
+}
+async function resetSecret(){
+ if(!authorized||!resetExpectedSha)return;
+ var pass=$("resetPassword").value,other=$("resetPasswordAgain").value;
+ var label=$("resetConfirmation").value.trim();
+ if(pass.length<12){$("resetMessage").textContent="Det nye passordet må være minst 12 tegn.";return}
+ if(pass!==other){$("resetMessage").textContent="Passordene er ikke like.";return}
+ if(label!=="NULLSTILL"){$("resetMessage").textContent="Skriv NULLSTILL i bekreftelsesfeltet.";return}
+ var button=$("confirmReset");
+ button.disabled=true;
+ $("resetMessage").textContent="Kontrollerer og oppretter nytt kryptert skipskart …";
+ try{
+  var latest=await readEncryptedRemote();
+  if(!latest.data||latest.sha!==resetExpectedSha){
+   throw new Error("Skipskartet har endret seg siden du åpnet nullstillingen. Avbryt og kontroller siste versjon før du prøver igjen.");
+  }
+  var blank=await window.HaldenSecretSync.encrypt({},pass);
+  var content=encodeBase64(JSON.stringify(blank,null,2)+"\n");
+  var saved=await api("PUT",SECRET_API,{
+   message:"Battleship: start nytt kryptert Halden-skipskart etter passordtap",
+   branch:"main",sha:latest.sha,content:content
+  });
+  ships={};secretPassword=pass;secretSha=saved.content.sha;secretUnlocked=true;secretExists=true;
+  target="halden";mode="ships";selected.clear();
+  // The old encrypted bytes remain available in repository commit history.
+  closeResetDialog();
+  render();
+  if(rememberThisDevice)await saveRemembered();
+  toast("✅ Nytt skipskart er klart! Registrerte skudd og statistikk er beholdt.");
+ }catch(e){
+  $("resetMessage").textContent="Nullstilling ble ikke gjennomført: "+e.message;
+ }finally{button.disabled=false}
 }
 async function refreshEncrypted(){
  if(!authorized||!secretUnlocked||busy)return;
@@ -556,6 +621,9 @@ function init(){
  $("tokenInput").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
  $("unlockSecret").addEventListener("click",showSecretDialog);
  $("cancelSecret").addEventListener("click",function(){$("secretModal").close();$("secretPass").value="";$("secretPass").type="password"});
+ $("forgotSecret").addEventListener("click",showResetDialog);
+ $("confirmReset").addEventListener("click",resetSecret);
+ $("cancelReset").addEventListener("click",closeResetDialog);
  $("openSecret").addEventListener("click",unlockSecret);
  $("secretPass").addEventListener("keydown",function(e){if(e.key==="Enter")unlockSecret()});
  $("generatePass").addEventListener("click",function(){$("secretPass").value=window.HaldenSecretSync.generatePassword();$("secretPass").type="text";$("toggleSecret").textContent="🙈 Skjul passord";$("toggleSecret").setAttribute("aria-pressed","true");$("secretMsg").textContent="Generert passord er valgfritt. Lagre det i passordbehandleren.";});

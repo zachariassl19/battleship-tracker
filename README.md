@@ -45,6 +45,20 @@ Ved første oppsett flyttes eventuelle eksisterende skip fra den gamle nettleser
 
 `data/game.json` er fortsatt offentlig kampdata, mens `data/halden-ships.enc.json` kun inneholder kryptert skipskart.
 
+## Glemt skipskart-passord
+
+Hemmelig skipskart er kryptert og kan **ikke** dekrypteres uten det originale passordet. Det er likevel mulig å fortsette kampen uten å nullstille noe: trykk **Avbryt** i passorddialogen for å få tilgang til den offentlige skuddoversikten. Du kan fortsatt registrere treff og bom når GitHub-innloggingen er godkjent.
+
+Hvis passordet er tapt:
+
+1. Kontroller først om du har en annen PC/mobil med allerede opplåst skipskart eller en privat JSON-sikkerhetskopi. Da kan du bevare plasseringene.
+2. I passorddialogen velger du **Glemt passord? Lag nytt skipskart**.
+3. Les advarselen. Velg et **nytt passord med minst 12 tegn** og gjenta det.
+4. Skriv **NULLSTILL** og bekreft. Kun den krypterte filen for Haldens hemmelige skip erstattes med et **tomt skipskart**. **Kampdata, treff og bom i `data/game.json` endres ikke.**
+5. Bruk det nye passordet på PC og mobil. Velg **Husk meg** bare på private enheter.
+
+Et tidligere kryptert skipskart ligger i GitHub-kommithistorikken. Det kan ikke låses opp uten det gamle passordet selv om du velger et nytt. Reset-funksjonen bruker filens siste SHA for å avvise en tilbakestilt fil hvis en annen enhet oppdaterte den i mellomtiden. Reset krever en gyldig GitHub-nøkkel med skriverettigheter.
+
 ## Skudd og angre
 
 Du kan velge flere ruter og registrere alle treff eller bom i én publisering. Hver publisering gir én commit. **Angre siste publisering** reverserer forrige registrering eller senking. Tilskuere henter endringer automatisk, med mulig forsinkelse.
