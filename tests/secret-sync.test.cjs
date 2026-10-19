@@ -40,5 +40,9 @@ test("secret data roundtrips through authenticated AES-GCM", async () => {
   await assert.rejects(decrypt(modified,password),/Feil hemmelig passord|Ugyldig kryptert fil/);
 });
 test("password too short cannot encrypt", async () => {
-  await assert.rejects(encrypt(ships,"1234"),/20 tegn/);
+  await assert.rejects(encrypt(ships,"1234"),/12 tegn/);
+  await assert.rejects(encrypt(ships,"abcdefghijk"),/12 tegn/);
+  const ownPassphrase="Min egen 12!";
+  const encrypted=await encrypt(ships,ownPassphrase);
+  assert.deepEqual(await decrypt(encrypted,ownPassphrase),ships);
 });
