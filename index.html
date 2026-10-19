@@ -87,7 +87,7 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
      <h3>🚢 Våre hemmelige skip</h3>
      <p class="sub">Velg skip og retning. Trykk på startruten for å plassere skipet. Dette lagres kun i denne nettleseren, aldri på GitHub.</p>
      <div class="fields"><div><label for="shipSelect">Velg skip</label><select id="shipSelect"></select></div><div><label for="shipDir">Retning</label><select id="shipDir"><option value="h">Vannrett →</option><option value="v">Loddrett ↓</option></select></div></div>
-     <div class="action-row"><button id="removeShip" class="btn" type="button">Fjern valgt skip</button><button id="exportShips" class="btn" type="button">Last ned privat sikkerhetskopi</button></div>
+     <div class="action-row"><button id="removeShip" class="btn" type="button">Fjern valgt skip</button><button id="exportShips" class="btn" type="button">Last ned privat sikkerhetskopi</button><button id="importShipsBtn" class="btn" type="button">Gjenopprett privat sikkerhetskopi</button><input id="importShipsFile" type="file" accept="application/json,.json" class="hidden"></div>
      <p class="note">Viktig: Unngå å laste opp sikkerhetskopien til det offentlige GitHub-prosjektet.</p>
    </div>
   </div>
@@ -256,6 +256,24 @@ function exportShips(){
  var blob=new Blob([str],{type:"application/json"});var a=document.createElement("a");var url=URL.createObjectURL(blob);
  a.href=url;a.download="halden-hemmelige-skip-privat.json";a.click();setTimeout(function(){URL.revokeObjectURL(url)},2000)
 }
+function importShipsFile(file){
+ if(!authorized||!file)return;
+ file.text().then(function(content){
+   var parsed=JSON.parse(content);if(!parsed.private||!parsed.ships||typeof parsed.ships!=="object")throw new Error("Dette er ikke en privat sikkerhetskopi.");
+   var next={},occupied=new Set();
+   FLEET.forEach(function(s){
+     if(!parsed.ships[s.id])return;
+     var cells=parsed.ships[s.id];
+     if(!Array.isArray(cells)||cells.length!==s.size||!cells.every(coordsValid))throw new Error("Ugyldig plassering for "+s.name);
+     var rr=cells.map(function(c){return ROWS.indexOf(c[0])}),cc=cells.map(function(c){return Number(c.slice(1))});
+     var aligned=rr.every(function(v){return v===rr[0]})||cc.every(function(v){return v===cc[0]});
+     if(!aligned||cells.some(function(c){return occupied.has(c)}))throw new Error("Overlapp eller ugyldig skipsform.");
+     cells.forEach(function(c){occupied.add(c)});next[s.id]=cells;
+   });
+   ships=next;persistShips();render();toast("Privat skipskart gjenopprettet på denne enheten.");
+ }).catch(function(err){toast("Import feilet: "+err.message)});
+ $("importShipsFile").value="";
+}
 function encodeBase64(str){var bytes=new TextEncoder().encode(str),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);return btoa(binary)}
 function decodeBase64(str){var binary=atob(str.replace(/\s/g,"")),bytes=new Uint8Array(binary.length);for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new TextDecoder().decode(bytes)}
 async function api(method,url,body){
@@ -313,9 +331,13 @@ async function undo(){
 }
 async function loadPublic(showToast){
  try{
-  var res=await fetch(RAW+"?v="+Date.now(),{cache:"no-store"});
-  if(!res.ok)throw new Error("Kampfilen er ikke publisert ennå");
-  var next=normalize(await res.json());game=next;ready=true;
+  var next;
+  if(authorized){next=(await readGitHub()).data}else{
+   var res=await fetch(RAW+"?v="+Date.now(),{cache:"no-store"});
+   if(!res.ok)throw new Error("Kampfilen er ikke publisert ennå");
+   next=normalize(await res.json())
+  }
+  game=next;ready=true;
   if(!busy){status("● Kampdata oppdatert",true);render()}
   if(showToast)toast("Siste kampdata hentet.")
  }catch(e){if(!ready){status("⚠️ Ikke publisert",false);$("banner").textContent="Dette prosjektet er ikke publisert ennå. GitHub Pages må aktiveres og den nye versjonen må legges på hovedgrenen."}else{status("⚠️ Venter på nett",false)}}
@@ -346,6 +368,8 @@ function init(){
  $("tokenInput").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
  $("removeShip").addEventListener("click",removeShip);
  $("exportShips").addEventListener("click",exportShips);
+ $("importShipsBtn").addEventListener("click",function(){$("importShipsFile").click()});
+ $("importShipsFile").addEventListener("change",function(){if(this.files[0])importShipsFile(this.files[0])});
  $("undo").addEventListener("click",undo);
  $("refresh").addEventListener("click",function(){loadPublic(true)});
  document.querySelectorAll("[data-shot]").forEach(function(b){b.addEventListener("click",function(){changeShots(b.dataset.shot)})});
