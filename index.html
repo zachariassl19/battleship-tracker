@@ -42,6 +42,8 @@ input,select{width:100%;background:#0e1418;border:1px solid #5c6874;border-radiu
 .text{font-size:13px;color:#d8dfe5;line-height:1.6}.text strong{color:#ffb476}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.hidden{display:none!important}
 .note{color:#e8c99b;font-size:12px;line-height:1.5;margin-top:8px}
+.remember-option{display:flex;align-items:center;gap:10px;margin:12px 0 5px;text-transform:none;font-size:13px;font-weight:700;color:#f4f6f8;cursor:pointer}
+.remember-option input{width:22px;height:22px;min-width:22px;accent-color:#ff7624}
 .footer{text-align:center;padding:22px;color:#a3abb4;font-size:12px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#ffe5b6;color:#211710;max-width:min(90vw,540px);padding:11px 16px;border-radius:10px;box-shadow:0 10px 35px #0008;font-size:13px;font-weight:850;z-index:10}
 dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14px;padding:22px;width:min(480px,94vw)}dialog::backdrop{background:#000a}
@@ -126,22 +128,25 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
 <dialog id="loginModal">
  <h2>🔐 Redigering via GitHub</h2>
  <p class="text" style="margin-top:12px">Bare GitHub-brukeren <strong>zachariassl19</strong> kan publisere. Opprett en <strong>fine-grained personal access token</strong> med tilgang kun til <strong>battleship-tracker</strong> og <strong>Contents: Read and write</strong>.</p>
- <p class="note">Lim inn nøkkelen her, ikke i felleschatten. Den beholdes bare i minnet til denne fanen og må oppgis på nytt når siden åpnes på nytt.</p>
+ <p class="note">Battleship kan huske innloggingen på din private PC eller mobil. Ikke velg dette på en delt enhet.</p>
  <div style="margin-top:14px"><label for="tokenInput">GitHub-nøkkel</label><input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>
+ <label class="remember-option" for="rememberDevice"><input id="rememberDevice" type="checkbox"> <span>🔐 Husk meg og skipskart-passordet på denne enheten</span></label>
+ <p class="note">Kun på din private PC eller mobil. Neste gang logges du inn automatisk. GitHub-nøkkelen må fornyes når den utløper.</p>
  <p class="sub" id="loginMsg" role="status"></p>
  <div class="row" style="margin-top:16px"><button id="connect" type="button" class="btn primary">Koble til</button><button id="cancel" type="button" class="btn">Avbryt</button></div>
  <p class="sub" style="margin-top:12px"><a style="color:#ffc78b" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Opprett nøkkel på GitHub ↗</a></p>
 </dialog>
 <dialog id="secretModal">
  <h2>🔐 Hemmelig skipskart</h2>
- <p id="secretExplain" class="text" style="margin-top:12px">Bruk samme hemmelige passord på PC og mobil for å se dine skip.</p>
- <div style="margin-top:14px"><label for="secretPass">Hemmelig skipskart-passord (ikke GitHub-nøkkelen)</label><input id="secretPass" type="password" autocomplete="off" spellcheck="false" placeholder="Minst 20 tegn"></div>
- <div class="row" style="margin-top:12px"><button id="generatePass" class="btn" type="button">🎲 Generer sikkert passord</button><button id="copySecret" class="btn" type="button">Kopier passord</button></div>
- <p class="note" id="secretMsg" role="status">Passordet blir aldri sendt til GitHub. Hvis du mister det får du ikke dekryptert skipskartet.</p>
+ <p id="secretExplain" class="text" style="margin-top:12px">Du kan lage ditt eget passord. Automatisk generering er valgfritt.</p>
+ <div style="margin-top:14px"><label id="secretPassLabel" for="secretPass">Lag ditt eget skipskart-passord</label><input id="secretPass" type="password" autocomplete="off" spellcheck="false" placeholder="Skriv minst 12 tegn" minlength="12"></div>
+ <div class="row" style="margin-top:12px"><button id="generatePass" class="btn" type="button">🎲 Generer automatisk (valgfritt)</button><button id="toggleSecret" class="btn" type="button" aria-pressed="false">👁 Vis passord</button><button id="copySecret" class="btn" type="button">Kopier passord</button></div>
+ <p class="note" id="secretMsg" role="status">Minst 12 tegn. Velg en vanskelig passfrase du ikke bruker andre steder. Anbefalt 16 tegn eller mer.</p>
  <div class="row" style="margin-top:15px"><button id="openSecret" class="btn primary" type="button">Lås opp / start synkronisering</button><button id="cancelSecret" class="btn" type="button">Avbryt</button></div>
 </dialog>
 <div id="toast" class="hidden" role="status"></div>
 <script src="secret-sync.js" defer></script>
+<script src="device-login.js" defer></script>
 <script>
 (function(){
 "use strict";
@@ -160,6 +165,7 @@ var base={schema:1,title:"POWER Halden vs. Ski",updated_at:null,shots:{ski:{},ha
 var game=structuredClone(base),token="",authorized=false,busy=false,ready=false;
 var target="ski",mode="shots",selected=new Set(),ships={};
 var secretUnlocked=false,secretPassword="",secretSha=null,shipBusy=false,secretExists=false;
+var rememberThisDevice=false,restoringLogin=false;
 var $=function(id){return document.getElementById(id)};
 function toast(str){var x=$("toast");x.textContent=str;x.classList.remove("hidden");clearTimeout(toast.t);toast.t=setTimeout(function(){x.classList.add("hidden")},4300)}
 function status(str,good){$("sync").textContent=str;$("sync").className="pill "+(good?"live":"warn")}
@@ -348,10 +354,13 @@ async function readEncryptedRemote(){
 function showSecretDialog(){
  if(!authorized)return;
  $("secretPass").value="";$("secretPass").type="password";
- $("secretMsg").textContent="Passordet sendes aldri til GitHub. Oppbevar det i en passordbehandler.";
+ $("toggleSecret").textContent="👁 Vis passord";$("toggleSecret").setAttribute("aria-pressed","false");
+ $("secretMsg").textContent="Skriv et eget passord på minst 12 tegn eller generer automatisk. 16+ tegn anbefales.";
  $("secretExplain").textContent=secretExists?
-  "Skriv inn det samme hemmelige skipskart-passordet som du brukte på den andre enheten.":
-  "Første oppsett: generer et sterkt hemmelig passord. Bruk det samme på PC og mobil.";
+  "Bruk det samme skipskart-passordet som du valgte på den andre enheten.":
+  "Første oppsett: Velg ditt eget passord på minst 12 tegn. Automatisk generering er valgfritt.";
+ $("secretPassLabel").textContent=secretExists?"Skipskart-passordet ditt":"Lag ditt eget skipskart-passord";
+ $("secretPass").placeholder=secretExists?"Skriv inn passordet ditt":"Skriv minst 12 tegn";
  $("generatePass").classList.toggle("hidden",secretExists);
  $("secretModal").showModal();
 }
@@ -366,7 +375,7 @@ async function unlockSecret(){
  if(!authorized)return;
  var password=$("secretPass").value;
  if(!window.crypto||!crypto.subtle){$("secretMsg").textContent="Denne nettleseren støtter ikke sikker kryptering.";return}
- if(password.length<20){$("secretMsg").textContent="Bruk et sterkt hemmelig passord på minst 20 tegn.";return}
+ if(password.length<12){$("secretMsg").textContent="Passordet må ha minst 12 tegn. Velg gjerne en lang passfrase.";return}
  $("openSecret").disabled=true;$("secretMsg").textContent="Dekrypterer og kontrollerer …";
  try{
   var remote=await readEncryptedRemote(),next;
@@ -385,6 +394,7 @@ async function unlockSecret(){
   target="halden";mode="ships";selected.clear();
   localStorage.removeItem("power-halden-secret-ships-2026");
   $("secretPass").value="";$("secretPass").type="password";$("secretModal").close();render();
+  if(rememberThisDevice)await saveRemembered();
   toast("🔐 Hemmelige skip er synkronisert mellom enhetene.");
  }catch(e){$("secretMsg").textContent="Kunne ikke låse opp: "+e.message+" – ingen skip er endret."}
  finally{$("openSecret").disabled=false}
@@ -477,12 +487,16 @@ async function login(){
   if(!user.login||user.login.toLowerCase()!==OWNER){token="";throw new Error("Dette er ikke eierkontoen til prosjektet.")}
   await readGitHub();
   authorized=true;$("tokenInput").value="";$("loginModal").close();$("loginMsg").textContent="";
+  rememberThisDevice=$("rememberDevice").checked;
   secretUnlocked=false;ships={};secretSha=null;secretPassword="";render();
-   await inspectSecret();toast("Du er logget inn som redaktør.")
+  if(rememberThisDevice)await saveRemembered();
+  await inspectSecret();toast("Du er logget inn som redaktør.")
  }catch(e){token="";authorized=false;$("loginMsg").textContent="Innlogging feilet: "+e.message}
  finally{$("connect").disabled=false}
 }
-function logout(){token="";authorized=false;ships={};secretUnlocked=false;secretPassword="";secretSha=null;secretExists=false;selected.clear();mode="shots";render();toast("Redigering er avsluttet.")}
+async function logout(){token="";authorized=false;ships={};secretUnlocked=false;secretPassword="";secretSha=null;secretExists=false;rememberThisDevice=false;selected.clear();mode="shots";$("rememberDevice").checked=false;
+ try{await window.BattleshipDeviceLogin.clear()}catch(e){}
+ render();toast("Redigering er avsluttet. Lagret innlogging er fjernet fra denne enheten.")}
 function init(){
  $("skiTab").addEventListener("click",function(){switchTarget("ski")});
  $("haldenTab").addEventListener("click",function(){switchTarget("halden")});
@@ -496,7 +510,8 @@ function init(){
  $("cancelSecret").addEventListener("click",function(){$("secretModal").close();$("secretPass").value="";$("secretPass").type="password"});
  $("openSecret").addEventListener("click",unlockSecret);
  $("secretPass").addEventListener("keydown",function(e){if(e.key==="Enter")unlockSecret()});
- $("generatePass").addEventListener("click",function(){$("secretPass").value=window.HaldenSecretSync.generatePassword();$("secretPass").type="text";$("secretMsg").textContent="Lagre passordet i en passordbehandler før du fortsetter. Du trenger det også på mobilen.";});
+ $("generatePass").addEventListener("click",function(){$("secretPass").value=window.HaldenSecretSync.generatePassword();$("secretPass").type="text";$("toggleSecret").textContent="🙈 Skjul passord";$("toggleSecret").setAttribute("aria-pressed","true");$("secretMsg").textContent="Generert passord er valgfritt. Lagre det i passordbehandleren.";});
+ $("toggleSecret").addEventListener("click",function(){var showing=$("secretPass").type==="password";$("secretPass").type=showing?"text":"password";$("toggleSecret").textContent=showing?"🙈 Skjul passord":"👁 Vis passord";$("toggleSecret").setAttribute("aria-pressed",String(showing));});
  $("copySecret").addEventListener("click",async function(){try{await navigator.clipboard.writeText($("secretPass").value);toast("Passordet er kopiert. Oppbevar det privat.")}catch(e){toast("Kunne ikke kopiere – kopier det manuelt.")}});
  $("removeShip").addEventListener("click",removeShip);
  $("exportShips").addEventListener("click",exportShips);
@@ -506,7 +521,7 @@ function init(){
  $("refresh").addEventListener("click",function(){loadPublic(true)});
  document.querySelectorAll("[data-shot]").forEach(function(b){b.addEventListener("click",function(){changeShots(b.dataset.shot)})});
  FLEET.forEach(function(s){var opt=document.createElement("option");opt.value=s.id;opt.textContent=s.name+" ("+s.size+" ruter)";$("shipSelect").append(opt)});
- render();loadPublic(false);setInterval(function(){if(!busy){loadPublic(false);refreshEncrypted()}},30000)
+ render();loadPublic(false);restoreRemembered();setInterval(function(){if(!busy){loadPublic(false);refreshEncrypted()}},30000)
 }
 document.addEventListener("DOMContentLoaded",init);
 })();
