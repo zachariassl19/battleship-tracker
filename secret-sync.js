@@ -57,8 +57,8 @@
     );
   }
   async function encrypt(placements, password) {
-    if (typeof password !== "string" || password.length < 20) {
-      throw new Error("Bruk et langt hemmelig passord på minst 20 tegn");
+    if (typeof password !== "string" || password.length < 12) {
+      throw new Error("Bruk et langt hemmelig passord på minst 12 tegn");
     }
     const valid = validateShips(placements);
     const salt = crypto.getRandomValues(new Uint8Array(16));
