@@ -197,9 +197,9 @@ function renderBoard(){
  axis("");for(var col=1;col<=10;col++)axis(String(col));
  ROWS.forEach(function(r){
    axis(r);
-   for(var c=1;c<=10;c++){
-     var cell=r+c,value=game.shots[target][cell]||"";
-     var b=document.createElement("button");b.type="button";b.className="tile";
+   for(let c=1;c<=10;c++){
+     const cell=r+c,value=game.shots[target][cell]||"";
+     const b=document.createElement("button");b.type="button";b.className="tile";
      if(value==="hit")b.classList.add("hit");
      else if(value==="miss")b.classList.add("miss");
      else if(value==="sunk")b.classList.add("sunk-cell");
