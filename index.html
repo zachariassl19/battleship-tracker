@@ -267,7 +267,10 @@ async function saveShipsChange(change,label){
   var remote=await readEncryptedRemote();
   if(remote.sha!==secretSha) {
    toast("Skipskartet ble endret fra en annen enhet. Oppdater først – ingen endring ble overskrevet.");
-   await refreshEncrypted();
+   if(remote.data){
+    try{ships=await window.HaldenSecretSync.decrypt(remote.data,secretPassword);secretSha=remote.sha}
+    catch(e){toast("Kunne ikke hente den nye versjonen: "+e.message)}
+   }
    return;
   }
   var next=structuredClone(ships);
@@ -322,7 +325,7 @@ async function readEncryptedRemote(){
 }
 function showSecretDialog(){
  if(!authorized)return;
- $("secretPass").value="";
+ $("secretPass").value="";$("secretPass").type="password";
  $("secretMsg").textContent="Passordet sendes aldri til GitHub. Oppbevar det i en passordbehandler.";
  $("secretExplain").textContent=secretExists?
   "Skriv inn det samme hemmelige skipskart-passordet som du brukte på den andre enheten.":
@@ -340,6 +343,7 @@ async function inspectSecret(){
 async function unlockSecret(){
  if(!authorized)return;
  var password=$("secretPass").value;
+ if(!window.crypto||!crypto.subtle){$("secretMsg").textContent="Denne nettleseren støtter ikke sikker kryptering.";return}
  if(password.length<20){$("secretMsg").textContent="Bruk et sterkt hemmelig passord på minst 20 tegn.";return}
  $("openSecret").disabled=true;$("secretMsg").textContent="Dekrypterer og kontrollerer …";
  try{
@@ -356,7 +360,8 @@ async function unlockSecret(){
    localStorage.removeItem("power-halden-secret-ships-2026");
   }
   ships=next;secretPassword=password;secretSha=remote.sha;secretUnlocked=true;
-  $("secretPass").value="";$("secretModal").close();render();
+  localStorage.removeItem("power-halden-secret-ships-2026");
+  $("secretPass").value="";$("secretPass").type="password";$("secretModal").close();render();
   toast("🔐 Hemmelige skip er synkronisert mellom enhetene.");
  }catch(e){$("secretMsg").textContent="Kunne ikke låse opp: "+e.message+" – ingen skip er endret."}
  finally{$("openSecret").disabled=false}
@@ -465,7 +470,7 @@ function init(){
  $("connect").addEventListener("click",login);
  $("tokenInput").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
  $("unlockSecret").addEventListener("click",showSecretDialog);
- $("cancelSecret").addEventListener("click",function(){$("secretModal").close();$("secretPass").value=""});
+ $("cancelSecret").addEventListener("click",function(){$("secretModal").close();$("secretPass").value="";$("secretPass").type="password"});
  $("openSecret").addEventListener("click",unlockSecret);
  $("secretPass").addEventListener("keydown",function(e){if(e.key==="Enter")unlockSecret()});
  $("generatePass").addEventListener("click",function(){$("secretPass").value=window.HaldenSecretSync.generatePassword();$("secretPass").type="text";$("secretMsg").textContent="Lagre passordet i en passordbehandler før du fortsetter. Du trenger det også på mobilen.";});
