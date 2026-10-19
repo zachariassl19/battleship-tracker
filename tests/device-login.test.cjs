@@ -49,7 +49,7 @@ test("trusted-device credentials can be saved, restored and forgotten",async()=>
   assert.equal(typeof stored.iv[0],"number");
   assert.equal(indexedDB.entries.get("local-key").extractable,false);
   assert.ok(!JSON.stringify(stored).includes(original.token),"token must not be plaintext in IndexedDB data");
-  assert.deepEqual(await api.load(),original);
+  assert.deepEqual(JSON.parse(JSON.stringify(await api.load())),original);
   await api.clear();
   assert.equal(await api.load(),null);
 });
