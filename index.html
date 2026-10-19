@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#ff6a00">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.github.com https://raw.githubusercontent.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://api.github.com https://raw.githubusercontent.com; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'">
 <title>POWER Battleship • Halden mot Ski</title>
 <style>
 :root{color-scheme:dark;--orange:#ff7624;--ink:#0f1317;--panel:#1c2329;--stroke:#35404b;--muted:#aeb7c0;--text:#f4f6f8;--cell:clamp(27px,3.1vw,44px);font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
@@ -50,7 +50,7 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
  <div><div class="brand">POW<span>ER</span> BATTLESHIP</div><h1>HALDEN ⚔ SKI</h1><p class="sub">12 × 10 ruter • 9 skip • 29 skipsruter</p></div>
  <div class="statusbar"><span id="sync" class="pill warn">Laster kamp …</span><span id="role" class="pill">👀 Tilskuer</span><button id="loginButton" class="btn primary" type="button">🔐 Rediger</button></div>
 </header>
-<div id="banner" class="banner">Alle med lenken kan følge kampen. Bare eieren av GitHub-prosjektet kan publisere endringer. Haldens egne skipsplasseringer ligger kun på redaktørens enhet.</div>
+<div id="banner" class="banner">Alle med lenken kan følge kampen. Bare eieren av GitHub-prosjektet kan publisere endringer. Haldens skipsplasseringer synkroniseres kryptert mellom PC og mobil.</div>
 <div class="numbers">
 <div class="num"><small>Haldens treff mot Ski</small><strong id="hits">0</strong></div>
 <div class="num"><small>Haldens bom mot Ski</small><strong id="misses">0</strong></div>
@@ -69,6 +69,8 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
   <p id="readHint" class="sub">🔒 Du kan se brettet. Kun eieren av GitHub-kontoen kan redigere.</p>
   <div id="editing" class="hidden">
    <div class="ruleline"></div>
+   <div id="secretLock" class="editorbox"><strong>🔒 Haldens skipskart er låst</strong><p class="sub">Lås opp for å se og redigere skip fra PC og mobil.</p><button id="unlockSecret" class="btn primary" type="button" style="margin-top:10px">🔐 Lås opp skipskart</button></div>
+   <div id="secretUnlocked" class="info hidden" style="margin-top:12px">🔐 Skipskartet er låst opp. Endringer synkroniseres kryptert til GitHub.</div>
    <div class="edit-row">
      <button id="shotsMode" type="button" class="btn active">💣 Treff og bom</button>
      <button id="shipsMode" type="button" class="btn">🚢 Plasser Halden-skip</button>
@@ -85,10 +87,10 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
    </div>
    <div id="shipPanel" class="editorbox hidden">
      <h3>🚢 Våre hemmelige skip</h3>
-     <p class="sub">Velg skip og retning. Trykk på startruten for å plassere skipet. Dette lagres kun i denne nettleseren, aldri på GitHub.</p>
+     <p class="sub">Velg skip og retning. Trykk på startruten for å plassere skipet. Plasseringen krypteres før den synkroniseres til GitHub. Bare du med det hemmelige passordet kan lese den.</p>
      <div class="fields"><div><label for="shipSelect">Velg skip</label><select id="shipSelect"></select></div><div><label for="shipDir">Retning</label><select id="shipDir"><option value="h">Vannrett →</option><option value="v">Loddrett ↓</option></select></div></div>
      <div class="action-row"><button id="removeShip" class="btn" type="button">Fjern valgt skip</button><button id="exportShips" class="btn" type="button">Last ned privat sikkerhetskopi</button><button id="importShipsBtn" class="btn" type="button">Gjenopprett privat sikkerhetskopi</button><input id="importShipsFile" type="file" accept="application/json,.json" class="hidden"></div>
-     <p class="note">Viktig: Unngå å laste opp sikkerhetskopien til det offentlige GitHub-prosjektet.</p>
+     <p class="note">Den private sikkerhetskopien er ikke kryptert. Oppbevar den sikkert og aldri last den opp til et offentlig GitHub-prosjekt.</p>
    </div>
   </div>
  </section>
@@ -117,12 +119,22 @@ dialog{background:#202930;color:white;border:1px solid #67727d;border-radius:14p
  <div class="row" style="margin-top:16px"><button id="connect" type="button" class="btn primary">Koble til</button><button id="cancel" type="button" class="btn">Avbryt</button></div>
  <p class="sub" style="margin-top:12px"><a style="color:#ffc78b" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Opprett nøkkel på GitHub ↗</a></p>
 </dialog>
+<dialog id="secretModal">
+ <h2>🔐 Hemmelig skipskart</h2>
+ <p id="secretExplain" class="text" style="margin-top:12px">Bruk samme hemmelige passord på PC og mobil for å se dine skip.</p>
+ <div style="margin-top:14px"><label for="secretPass">Hemmelig skipskart-passord (ikke GitHub-nøkkelen)</label><input id="secretPass" type="password" autocomplete="off" spellcheck="false" placeholder="Minst 20 tegn"></div>
+ <div class="row" style="margin-top:12px"><button id="generatePass" class="btn" type="button">🎲 Generer sikkert passord</button><button id="copySecret" class="btn" type="button">Kopier passord</button></div>
+ <p class="note" id="secretMsg" role="status">Passordet blir aldri sendt til GitHub. Hvis du mister det får du ikke dekryptert skipskartet.</p>
+ <div class="row" style="margin-top:15px"><button id="openSecret" class="btn primary" type="button">Lås opp / start synkronisering</button><button id="cancelSecret" class="btn" type="button">Avbryt</button></div>
+</dialog>
 <div id="toast" class="hidden" role="status"></div>
+<script src="secret-sync.js" defer></script>
 <script>
 (function(){
 "use strict";
 var REPO="zachariassl19/battleship-tracker",OWNER="zachariassl19";
 var PATH="data/game.json",API="https://api.github.com/repos/"+REPO+"/contents/"+PATH;
+var SECRET_API="https://api.github.com/repos/"+REPO+"/contents/data/halden-ships.enc.json";
 var RAW="https://raw.githubusercontent.com/"+REPO+"/main/"+PATH;
 var ROWS="ABCDEFGHIJKL".split("");
 var FLEET=[
@@ -134,6 +146,7 @@ var FLEET=[
 var base={schema:1,title:"POWER Halden vs. Ski",updated_at:null,shots:{ski:{},halden:{}},sunk:{ski:[],halden:[]},history:[]};
 var game=structuredClone(base),token="",authorized=false,busy=false,ready=false;
 var target="ski",mode="shots",selected=new Set(),ships={};
+var secretUnlocked=false,secretPassword="",secretSha=null,shipBusy=false,secretExists=false;
 var $=function(id){return document.getElementById(id)};
 function toast(str){var x=$("toast");x.textContent=str;x.classList.remove("hidden");clearTimeout(toast.t);toast.t=setTimeout(function(){x.classList.add("hidden")},4300)}
 function status(str,good){$("sync").textContent=str;$("sync").className="pill "+(good?"live":"warn")}
@@ -144,8 +157,11 @@ function normalize(data){
  return data
 }
 function coordsValid(c){return /^[A-L](10|[1-9])$/.test(c)}
-function readShips(){try{var saved=JSON.parse(localStorage.getItem("power-halden-secret-ships-2026")||"{}");ships=saved&&typeof saved==="object"&&!Array.isArray(saved)?saved:{}}catch(e){ships={}}}
-function persistShips(){try{localStorage.setItem("power-halden-secret-ships-2026",JSON.stringify(ships))}catch(e){toast("Kunne ikke lagre skip lokalt. Kontroller nettleseren.")}}
+function readLegacyShips(){
+ var raw=localStorage.getItem("power-halden-secret-ships-2026");
+ if(!raw)return {};
+ return window.HaldenSecretSync.validateShips(JSON.parse(raw));
+}
 function ownShip(c){return authorized&&target==="halden"&&FLEET.some(function(s){return Array.isArray(ships[s.id])&&ships[s.id].includes(c)})}
 function markCount(board,result){return Object.values(game.shots[board]).filter(function(x){return result==="hit"?(x==="hit"||x==="sunk"):x===result}).length}
 function renderNumbers(){
@@ -159,11 +175,13 @@ function renderRole(){
  $("loginButton").textContent=authorized?"Logg ut":"🔐 Rediger";
  $("editing").classList.toggle("hidden",!authorized);
  $("readHint").classList.toggle("hidden",authorized);
- $("shipLegend").classList.toggle("hidden",!authorized||target!=="halden");
+ $("shipLegend").classList.toggle("hidden",!secretUnlocked||target!=="halden");
+ $("secretLock").classList.toggle("hidden",!authorized||secretUnlocked);
+ $("secretUnlocked").classList.toggle("hidden",!authorized||!secretUnlocked);
  $("shotsMode").classList.toggle("active",mode==="shots");
  $("shipsMode").classList.toggle("active",mode==="ships");
- $("shipsMode").disabled=target!=="halden";
- $("shipPanel").classList.toggle("hidden",mode!=="ships"||!authorized);
+ $("shipsMode").disabled=target!=="halden"||!secretUnlocked||busy;
+ $("shipPanel").classList.toggle("hidden",mode!=="ships"||!secretUnlocked);
  $("shotPanel").classList.toggle("hidden",mode!=="shots"||!authorized);
  $("undo").disabled=!ready||busy||!game.history.length;
  $("updated").textContent=game.updated_at?"Sist publisert "+new Date(game.updated_at).toLocaleString("nb-NO",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"}):"Ingen publiseringer ennå";
@@ -190,7 +208,7 @@ function renderBoard(){
      b.textContent=value==="hit"?"×":value==="miss"?"○":value==="sunk"?"■":ownShip(cell)?"▰":"";
      b.title=cell+(value?" · "+value:"");
      b.setAttribute("aria-label",b.title);
-     b.disabled=!authorized||busy;
+     b.disabled=!authorized||busy||(mode==="ships"&&!secretUnlocked);
      b.addEventListener("click",function(){choose(cell)});
      grid.append(b)
    }
@@ -203,7 +221,7 @@ function renderFleet(){
    var done=game.sunk[target].includes(s.id);
    var wrap=document.createElement("div");wrap.className="shipline";
    var text=document.createElement("div"),name=document.createElement("strong"),detail=document.createElement("small");
-   name.textContent=s.name;detail.textContent=s.size+" ruter"+(authorized&&target==="halden"&&ships[s.id]?" • plassering lagret":"");
+   name.textContent=s.name;detail.textContent=s.size+" ruter"+(secretUnlocked&&target==="halden"&&ships[s.id]?" • plassering lagret":"");
    text.append(name,detail);wrap.append(text);
    var btn=document.createElement("button");btn.type="button";btn.className=done?"done":"";
    btn.textContent=done?"✓ Senket":authorized?"Marker senket":"På vannet";
@@ -231,48 +249,127 @@ function render(){
 }
 function choose(c){
  if(!authorized||busy)return;
- if(mode==="ships"){placeShip(c);return}
+ if(mode==="ships"){if(secretUnlocked)placeShip(c);return}
  if(selected.has(c))selected.delete(c);else selected.add(c);
  render()
 }
 function switchTarget(b){target=b;mode="shots";selected.clear();render()}
-function switchMode(m){if(m==="ships"&&target!=="halden")return;mode=m;selected.clear();render()}
+function switchMode(m){if(m==="ships"&&(target!=="halden"||!secretUnlocked))return;mode=m;selected.clear();render()}
 function planned(start,size,dir){
  var r=ROWS.indexOf(start[0]),c=Number(start.slice(1))-1,arr=[];
  for(var i=0;i<size;i++){var rr=r+(dir==="v"?i:0),cc=c+(dir==="h"?i:0);if(rr>=12||cc>=10)return null;arr.push(ROWS[rr]+(cc+1))}
  return arr
 }
-function placeShip(start){
+async function saveShipsChange(change,label){
+ if(!authorized||!secretUnlocked||busy)return;
+ busy=true;render();
+ try{
+  var remote=await readEncryptedRemote();
+  if(remote.sha!==secretSha) {
+   toast("Skipskartet ble endret fra en annen enhet. Oppdater først – ingen endring ble overskrevet.");
+   await refreshEncrypted();
+   return;
+  }
+  var next=structuredClone(ships);
+  change(next);
+  next=window.HaldenSecretSync.validateShips(next);
+  var ciphertext=await window.HaldenSecretSync.encrypt(next,secretPassword);
+  var payload={message:"Oppdater kryptert Halden-skipskart: "+label,branch:"main",content:encodeBase64(JSON.stringify(ciphertext,null,2)+"\n")};
+  if(remote.sha)payload.sha=remote.sha;
+  var saved=await api("PUT",SECRET_API,payload);
+  ships=next;secretSha=saved.content.sha;secretExists=true;
+  render();toast("🔐 Skipskartet er kryptert og synkronisert.");
+ }catch(error){toast("Kunne ikke synkronisere skipene: "+error.message)}
+ finally{busy=false;render()}
+}
+async function placeShip(start){
+ if(!secretUnlocked)return;
  var id=$("shipSelect").value,s=FLEET.find(function(x){return x.id===id});if(!s)return;
  var positions=planned(start,s.size,$("shipDir").value);
  if(!positions){toast("Skipet går utenfor brettet. Velg en annen rute.");return}
- if(FLEET.some(function(x){return x.id!==id&&Array.isArray(ships[x.id])&&ships[x.id].some(function(c){return positions.includes(c)})})){
- toast("Dette overlapper et annet skip.");return}
- ships[id]=positions;persistShips();render();toast(s.name+" er lagret på denne enheten.")
+ await saveShipsChange(function(next){next[id]=positions},s.name)
 }
-function removeShip(){delete ships[$("shipSelect").value];persistShips();render();toast("Skipet er fjernet lokalt.")}
+async function removeShip(){
+ if(!secretUnlocked)return;
+ var id=$("shipSelect").value;
+ await saveShipsChange(function(next){delete next[id]},"fjern "+id)
+}
 function exportShips(){
+ if(!secretUnlocked){toast("Lås opp skipskartet først.");return}
  var str=JSON.stringify({private:true,description:"POWER Halden hemmelige skip – ikke del offentlig",ships:ships},null,2);
  var blob=new Blob([str],{type:"application/json"});var a=document.createElement("a");var url=URL.createObjectURL(blob);
  a.href=url;a.download="halden-hemmelige-skip-privat.json";a.click();setTimeout(function(){URL.revokeObjectURL(url)},2000)
 }
-function importShipsFile(file){
- if(!authorized||!file)return;
- file.text().then(function(content){
-   var parsed=JSON.parse(content);if(!parsed.private||!parsed.ships||typeof parsed.ships!=="object")throw new Error("Dette er ikke en privat sikkerhetskopi.");
-   var next={},occupied=new Set();
-   FLEET.forEach(function(s){
-     if(!parsed.ships[s.id])return;
-     var cells=parsed.ships[s.id];
-     if(!Array.isArray(cells)||cells.length!==s.size||!cells.every(coordsValid))throw new Error("Ugyldig plassering for "+s.name);
-     var rr=cells.map(function(c){return ROWS.indexOf(c[0])}),cc=cells.map(function(c){return Number(c.slice(1))});
-     var aligned=rr.every(function(v){return v===rr[0]})||cc.every(function(v){return v===cc[0]});
-     if(!aligned||cells.some(function(c){return occupied.has(c)}))throw new Error("Overlapp eller ugyldig skipsform.");
-     cells.forEach(function(c){occupied.add(c)});next[s.id]=cells;
+async function importShipsFile(file){
+ if(!secretUnlocked||!file)return;
+ try{
+  var parsed=JSON.parse(await file.text());
+  if(!parsed.private||!parsed.ships)throw new Error("Ugyldig privat sikkerhetskopi");
+  var next=window.HaldenSecretSync.validateShips(parsed.ships);
+  await saveShipsChange(function(value){Object.keys(value).forEach(function(key){delete value[key]});Object.assign(value,next)},"importer privat sikkerhetskopi");
+ }catch(e){toast("Import feilet: "+e.message)}
+ finally{$("importShipsFile").value=""}
+}
+async function readEncryptedRemote(){
+ var result=await fetch(SECRET_API+"?ref=main&timestamp="+Date.now(),{
+  headers:{"Accept":"application/vnd.github+json","Authorization":"Bearer "+token,"X-GitHub-Api-Version":"2022-11-28"},
+  cache:"no-store"
+ });
+ if(result.status===404)return {sha:null,data:null};
+ var data=await result.json().catch(function(){return {}});
+ if(!result.ok)throw new Error(data.message||"Kunne ikke hente det krypterte skipskartet");
+ return {sha:data.sha,data:JSON.parse(decodeBase64(data.content))}
+}
+function showSecretDialog(){
+ if(!authorized)return;
+ $("secretPass").value="";
+ $("secretMsg").textContent="Passordet sendes aldri til GitHub. Oppbevar det i en passordbehandler.";
+ $("secretExplain").textContent=secretExists?
+  "Skriv inn det samme hemmelige skipskart-passordet som du brukte på den andre enheten.":
+  "Første oppsett: generer et sterkt hemmelig passord. Bruk det samme på PC og mobil.";
+ $("generatePass").classList.toggle("hidden",secretExists);
+ $("secretModal").showModal();
+}
+async function inspectSecret(){
+ try{
+  var remote=await readEncryptedRemote();
+  secretExists=!!remote.data;
+  showSecretDialog();
+ }catch(e){toast("Kunne ikke kontrollere skipskartet: "+e.message)}
+}
+async function unlockSecret(){
+ if(!authorized)return;
+ var password=$("secretPass").value;
+ if(password.length<20){$("secretMsg").textContent="Bruk et sterkt hemmelig passord på minst 20 tegn.";return}
+ $("openSecret").disabled=true;$("secretMsg").textContent="Dekrypterer og kontrollerer …";
+ try{
+  var remote=await readEncryptedRemote(),next;
+  if(remote.data)next=await window.HaldenSecretSync.decrypt(remote.data,password);
+  else {
+   next=readLegacyShips();
+   var envelope=await window.HaldenSecretSync.encrypt(next,password);
+   var created=await api("PUT",SECRET_API,{
+    message:"Opprett kryptert Halden-skipskart",branch:"main",
+    content:encodeBase64(JSON.stringify(envelope,null,2)+"\n")
    });
-   ships=next;persistShips();render();toast("Privat skipskart gjenopprettet på denne enheten.");
- }).catch(function(err){toast("Import feilet: "+err.message)});
- $("importShipsFile").value="";
+   remote.sha=created.content.sha;secretExists=true;
+   localStorage.removeItem("power-halden-secret-ships-2026");
+  }
+  ships=next;secretPassword=password;secretSha=remote.sha;secretUnlocked=true;
+  $("secretPass").value="";$("secretModal").close();render();
+  toast("🔐 Hemmelige skip er synkronisert mellom enhetene.");
+ }catch(e){$("secretMsg").textContent="Kunne ikke låse opp: "+e.message+" – ingen skip er endret."}
+ finally{$("openSecret").disabled=false}
+}
+async function refreshEncrypted(){
+ if(!authorized||!secretUnlocked||busy)return;
+ try{
+  var remote=await readEncryptedRemote();
+  if(!remote.data)throw new Error("Skipskartfilen finnes ikke lenger.");
+  if(remote.sha===secretSha)return;
+  var next=await window.HaldenSecretSync.decrypt(remote.data,secretPassword);
+  ships=next;secretSha=remote.sha;render();
+ }catch(e){toast("Oppdatering av hemmelig skipskart feilet: "+e.message)}
 }
 function encodeBase64(str){var bytes=new TextEncoder().encode(str),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);return btoa(binary)}
 function decodeBase64(str){var binary=atob(str.replace(/\s/g,"")),bytes=new Uint8Array(binary.length);for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new TextDecoder().decode(bytes)}
@@ -352,11 +449,12 @@ async function login(){
   if(!user.login||user.login.toLowerCase()!==OWNER){token="";throw new Error("Dette er ikke eierkontoen til prosjektet.")}
   await readGitHub();
   authorized=true;$("tokenInput").value="";$("loginModal").close();$("loginMsg").textContent="";
-  readShips();render();toast("Du er logget inn som redaktør.")
+  secretUnlocked=false;ships={};secretSha=null;secretPassword="";render();
+   await inspectSecret();toast("Du er logget inn som redaktør.")
  }catch(e){token="";authorized=false;$("loginMsg").textContent="Innlogging feilet: "+e.message}
  finally{$("connect").disabled=false}
 }
-function logout(){token="";authorized=false;ships={};selected.clear();mode="shots";render();toast("Redigering er avsluttet.")}
+function logout(){token="";authorized=false;ships={};secretUnlocked=false;secretPassword="";secretSha=null;secretExists=false;selected.clear();mode="shots";render();toast("Redigering er avsluttet.")}
 function init(){
  $("skiTab").addEventListener("click",function(){switchTarget("ski")});
  $("haldenTab").addEventListener("click",function(){switchTarget("halden")});
@@ -366,6 +464,12 @@ function init(){
  $("cancel").addEventListener("click",function(){$("loginModal").close()});
  $("connect").addEventListener("click",login);
  $("tokenInput").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
+ $("unlockSecret").addEventListener("click",showSecretDialog);
+ $("cancelSecret").addEventListener("click",function(){$("secretModal").close();$("secretPass").value=""});
+ $("openSecret").addEventListener("click",unlockSecret);
+ $("secretPass").addEventListener("keydown",function(e){if(e.key==="Enter")unlockSecret()});
+ $("generatePass").addEventListener("click",function(){$("secretPass").value=window.HaldenSecretSync.generatePassword();$("secretPass").type="text";$("secretMsg").textContent="Lagre passordet i en passordbehandler før du fortsetter. Du trenger det også på mobilen.";});
+ $("copySecret").addEventListener("click",async function(){try{await navigator.clipboard.writeText($("secretPass").value);toast("Passordet er kopiert. Oppbevar det privat.")}catch(e){toast("Kunne ikke kopiere – kopier det manuelt.")}});
  $("removeShip").addEventListener("click",removeShip);
  $("exportShips").addEventListener("click",exportShips);
  $("importShipsBtn").addEventListener("click",function(){$("importShipsFile").click()});
@@ -374,7 +478,7 @@ function init(){
  $("refresh").addEventListener("click",function(){loadPublic(true)});
  document.querySelectorAll("[data-shot]").forEach(function(b){b.addEventListener("click",function(){changeShots(b.dataset.shot)})});
  FLEET.forEach(function(s){var opt=document.createElement("option");opt.value=s.id;opt.textContent=s.name+" ("+s.size+" ruter)";$("shipSelect").append(opt)});
- render();loadPublic(false);setInterval(function(){if(!busy)loadPublic(false)},30000)
+ render();loadPublic(false);setInterval(function(){if(!busy){loadPublic(false);refreshEncrypted()}},30000)
 }
 document.addEventListener("DOMContentLoaded",init);
 })();
