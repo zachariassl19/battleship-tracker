@@ -32,3 +32,7 @@ jobs:
         run: node --test tests/grid-coordinates.test.cjs
       - name: Test mobile controls and unlock flow
         run: node --test tests/mobile-actions.test.cjs
+      - name: Check trusted-device storage JavaScript
+        run: node --check device-login.js
+      - name: Test remembered login and custom password UI
+        run: node --test tests/device-login.test.cjs
