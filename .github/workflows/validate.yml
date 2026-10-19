@@ -36,3 +36,5 @@ jobs:
         run: node --check device-login.js
       - name: Test remembered login and custom password UI
         run: node --test tests/device-login.test.cjs
+      - name: Test forgotten password recovery
+        run: node --test tests/forgot-password.test.cjs
