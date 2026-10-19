@@ -2,15 +2,13 @@
   "schema": 1,
   "title": "POWER Halden vs. Ski",
   "started_at": "2026-10-19",
-  "updated_at": "2026-10-19T11:28:25.386Z",
+  "updated_at": "2026-10-19T11:28:28.108Z",
   "shots": {
     "ski": {},
     "halden": {}
   },
   "sunk": {
-    "ski": [
-      "sub2"
-    ],
+    "ski": [],
     "halden": []
   },
   "history": [
@@ -47,6 +45,14 @@
       "newValue": true,
       "previous": false,
       "at": "2026-10-19T11:28:25.386Z"
+    },
+    {
+      "kind": "fleet",
+      "board": "ski",
+      "ship": "sub2",
+      "newValue": false,
+      "previous": true,
+      "at": "2026-10-19T11:28:28.108Z"
     }
   ]
 }
