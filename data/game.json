@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "title": "POWER Halden vs. Ski",
+  "started_at": "2026-10-19",
+  "updated_at": null,
+  "shots": {
+    "ski": {},
+    "halden": {}
+  },
+  "sunk": {
+    "ski": [],
+    "halden": []
+  },
+  "history": []
+}

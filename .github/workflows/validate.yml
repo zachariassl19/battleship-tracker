@@ -1,0 +1,25 @@
+name: Validate Battleship
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/github-only-halden-ski
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check campaign JSON
+        run: python3 -m json.tool data/game.json > /dev/null
+      - name: Extract embedded JavaScript
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.DOTALL)
+          assert len(scripts) == 1, "Expected a single inline JavaScript block"
+          Path("/tmp/battleship-check.js").write_text(scripts[0], encoding="utf-8")
+          PY
+      - name: Check JavaScript syntax
+        run: node --check /tmp/battleship-check.js
