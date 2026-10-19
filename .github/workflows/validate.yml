@@ -3,7 +3,8 @@ on:
   pull_request:
   push:
     branches:
-      - feature/github-only-halden-ski
+      - main
+      - feature/secure-cross-device-fleet-sync
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -23,3 +24,7 @@ jobs:
           PY
       - name: Check JavaScript syntax
         run: node --check /tmp/battleship-check.js
+      - name: Check secret synchronization JavaScript
+        run: node --check secret-sync.js
+      - name: Test encryption and fleet validation
+        run: node --test tests/secret-sync.test.cjs
