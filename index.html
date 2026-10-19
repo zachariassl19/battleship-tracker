@@ -477,6 +477,54 @@ async function loadPublic(showToast){
   if(showToast)toast("Siste kampdata hentet.")
  }catch(e){if(!ready){status("⚠️ Ikke publisert",false);$("banner").textContent="Dette prosjektet er ikke publisert ennå. GitHub Pages må aktiveres og den nye versjonen må legges på hovedgrenen."}else{status("⚠️ Venter på nett",false)}}
 }
+async function saveRemembered(){
+ if(!rememberThisDevice||!token)return false;
+ try{
+  await window.BattleshipDeviceLogin.save({token:token,secretPassword:secretUnlocked?secretPassword:""});
+  $("rememberDevice").checked=true;
+  return true;
+ }catch(e){
+  rememberThisDevice=false;$("rememberDevice").checked=false;
+  toast("Kunne ikke huske innloggingen på denne enheten: "+e.message);
+  return false;
+ }
+}
+async function restoreRemembered(){
+ if(restoringLogin||authorized)return;
+ restoringLogin=true;
+ try{
+  var saved=await window.BattleshipDeviceLogin.load();
+  if(!saved||!saved.token)return;
+  token=saved.token;
+  var user=await api("GET","https://api.github.com/user");
+  if(!user.login||user.login.toLowerCase()!==OWNER)throw new Error("Lagret nøkkel tilhører ikke eierkontoen (401)");
+  await readGitHub();
+  authorized=true;rememberThisDevice=true;$("rememberDevice").checked=true;
+  secretUnlocked=false;secretSha=null;secretPassword="";ships={};
+  try{
+   var remote=await readEncryptedRemote();
+   secretExists=!!remote.data;
+   if(remote.data&&saved.secretPassword){
+    ships=await window.HaldenSecretSync.decrypt(remote.data,saved.secretPassword);
+    secretUnlocked=true;secretPassword=saved.secretPassword;secretSha=remote.sha;
+   }
+  }catch(err){
+   // The GitHub login may be valid even if the stored fleet password is not.
+   ships={};secretUnlocked=false;secretPassword="";secretSha=null;
+   await saveRemembered();
+   toast("Logget inn. Lås opp skipskartet med riktig passord ved behov.");
+  }
+  render();
+  toast(secretUnlocked?"✅ Velkommen tilbake! Innlogging og skipskart er gjenopprettet.":"✅ Velkommen tilbake! Innloggingen er husket.");
+ }catch(err){
+  token="";authorized=false;secretUnlocked=false;secretPassword="";ships={};rememberThisDevice=false;
+  $("rememberDevice").checked=false;render();
+  if(/\(401\)|\(403\)/.test(err.message||"")){
+   try{await window.BattleshipDeviceLogin.clear()}catch(e){}
+   toast("Lagret GitHub-nøkkel virker ikke lenger. Lim inn en ny nøkkel.");
+  }
+ }finally{restoringLogin=false}
+}
 async function login(){
  var candidate=$("tokenInput").value.trim();
  if(!candidate){$("loginMsg").textContent="Lim inn GitHub-nøkkelen først.";return}
